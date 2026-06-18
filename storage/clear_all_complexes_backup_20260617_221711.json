@@ -1,0 +1,22 @@
+[
+    {
+        "id": 2,
+        "owner_id": 1,
+        "name": "Padel House Tunisia"
+    },
+    {
+        "id": 3,
+        "owner_id": 1,
+        "name": "Tennis Club de Tunis"
+    },
+    {
+        "id": 4,
+        "owner_id": 1,
+        "name": "Padel Marsa"
+    },
+    {
+        "id": 5,
+        "owner_id": 1,
+        "name": "Sassi Padel Club"
+    }
+]
