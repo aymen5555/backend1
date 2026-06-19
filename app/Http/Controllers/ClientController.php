@@ -13,9 +13,9 @@ class ClientController extends Controller
 {
     public function index(): JsonResponse
     {
-        $user = auth()->user();
-        $myComplexeIds = ($user && $user->role === 'gerant') 
-            ? Complexe::where('owner_id', $user->id)->pluck('id') 
+        $user = auth()->user('api');
+        $myComplexeIds = ($user && $user->role === 'gerant')
+            ? Complexe::where('owner_id', $user->id)->pluck('id')
             : Complexe::pluck('id');
 
         // GERANT and SUPER_ADMIN can see clients
@@ -43,9 +43,9 @@ class ClientController extends Controller
 
     public function update(Request $request, User $client): JsonResponse
     {
-        $user = auth()->user();
-        $myComplexeIds = ($user && $user->role === 'gerant') 
-            ? Complexe::where('owner_id', $user->id)->pluck('id') 
+        $user = auth()->user('api');
+        $myComplexeIds = ($user && $user->role === 'gerant')
+            ? Complexe::where('owner_id', $user->id)->pluck('id')
             : Complexe::pluck('id');
 
         if (!$user || !$user->isGerantOrAdmin()) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Complexe;
 use App\Models\User;
 use App\Models\AbonnementAdherent;
+use App\Models\Gerant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -288,6 +289,41 @@ class SuperAdminController extends Controller
                     'complexe'   => $gerant->complexe,
                     'created_at' => $gerant->created_at,
                 ],
+            ]);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            throw $e;
+        }
+
+    }
+
+    // ──────────────────────────────────────────────
+    //  DELETE /api/admin/gerants/{gerant} (super_admin only)
+    // ──────────────────────────────────────────────
+    public function deleteGerant(User $gerant): JsonResponse
+    {
+        if ($gerant->role !== 'gerant') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gérant introuvable.',
+            ], 404);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Release the complexe before deleting
+            if ($gerant->complexe) {
+                Complexe::where('owner_id', $gerant->id)
+                    ->update(['owner_id' => null]);
+            }
+
+            $gerant->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Gérant supprimé avec succès.',
             ]);
         } catch (\Throwable $e) {
             DB::rollBack();

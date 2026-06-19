@@ -14,12 +14,17 @@ use App\Http\Controllers\AdminReservationController;
 use App\Http\Controllers\ActiviteController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\AbonnementController;
+use App\Http\Controllers\CategorieProduitController;
 use App\Http\Controllers\ClientController;
+use App\Http\Controllers\CommandeController;
 use App\Http\Controllers\ComplexeController;
+use App\Http\Controllers\FournisseurController;
 use App\Http\Controllers\ProfilFitnessController;
 use App\Http\Controllers\RecommandationController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\TerrainController;
+use App\Http\Controllers\ProduitController;
+use App\Http\Controllers\VenteDirecteController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -56,6 +61,12 @@ Route::get('activites/{activite}/places', [ActiviteController::class, 'places'])
 
 // Make subscription types discoverable by guests (public)
 Route::get('abonnements/types', [App\Http\Controllers\AbonnementAdherentController::class, 'typesDisponibles']);
+
+// ── Products & Shop System ──────────────────────────────────────────────────────
+// PUBLIC — no auth needed
+Route::get('produits', [ProduitController::class, 'index']);
+Route::get('produits/{produit}', [ProduitController::class, 'show']);
+Route::get('categories-produits', [CategorieProduitController::class, 'index']);
 
 // ── Protected routes ──────────────────────────────────────────────────────────
 Route::middleware('auth:api')->group(function () {
@@ -134,6 +145,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('admin/abonnements-adherent/{id}/confirm-payment', [App\Http\Controllers\AbonnementAdherentController::class, 'adminConfirmPayment']);
         Route::put('admin/abonnements-adherent/{id}/cancel', [App\Http\Controllers\AbonnementAdherentController::class, 'adminCancel']);
         Route::delete('admin/abonnements-adherent/{id}', [App\Http\Controllers\AbonnementAdherentController::class, 'adminDestroy']);
+        Route::delete('admin/abonnements-adherent/{id}', [App\Http\Controllers\AbonnementAdherentController::class, 'adminForceDelete']);
     });
 
     // ── Activités CLIENT ─────────────────────────────────────────────────────
@@ -143,6 +155,41 @@ Route::middleware('auth:api')->group(function () {
     Route::put('activites/reservations/{reservation}/pay', [ActiviteController::class, 'payReservation']);
     Route::post('activites/{activite}/reserver', [ActiviteController::class, 'reserver']);
     Route::get('mes-activites', [ActiviteController::class, 'mesActivites']);
+
+    // ── Client Commands ────────────────────────────────────────────────────────
+    Route::post('commandes', [CommandeController::class, 'store']);
+    Route::get('mes-commandes', [CommandeController::class, 'mesCommandes']);
+    Route::get('mes-commandes/{commande}', [CommandeController::class, 'show']);
+    Route::delete('mes-commandes/{commande}/annuler', [CommandeController::class, 'annuler']);
+
+    // ── Products & Shop GERANT + SUPER_ADMIN ───────────────────────────────────
+    Route::middleware('role:super_admin,gerant')->group(function () {
+        Route::get('admin/produits', [ProduitController::class, 'adminIndex']);
+        Route::post('admin/produits', [ProduitController::class, 'store']);
+        Route::put('admin/produits/{produit}', [ProduitController::class, 'update']);
+        Route::delete('admin/produits/{produit}', [ProduitController::class, 'destroy']);
+        Route::put('admin/produits/{produit}/stock', [ProduitController::class, 'updateStock']);
+
+        Route::get('admin/commandes', [CommandeController::class, 'adminIndex']);
+        Route::put('admin/commandes/{commande}/statut', [CommandeController::class, 'updateStatut']);
+        Route::put('admin/commandes/{commande}/confirmer-paiement', [CommandeController::class, 'confirmerPaiement']);
+        Route::put('admin/commandes/{commande}/annuler', [CommandeController::class, 'adminAnnuler']);
+
+        Route::get('admin/ventes-directes', [VenteDirecteController::class, 'index']);
+        Route::post('admin/ventes-directes', [VenteDirecteController::class, 'store']);
+
+        Route::get('admin/fournisseurs', [FournisseurController::class, 'index']);
+        Route::post('admin/fournisseurs', [FournisseurController::class, 'store']);
+        Route::put('admin/fournisseurs/{fournisseur}', [FournisseurController::class, 'update']);
+        Route::delete('admin/fournisseurs/{fournisseur}', [FournisseurController::class, 'destroy']);
+    });
+
+    // ── Categories SUPER_ADMIN only ───────────────────────────────────────────
+    Route::middleware('role:super_admin')->group(function () {
+        Route::post('admin/categories-produits', [CategorieProduitController::class, 'store']);
+        Route::put('admin/categories-produits/{categorie}', [CategorieProduitController::class, 'update']);
+        Route::delete('admin/categories-produits/{categorie}', [CategorieProduitController::class, 'destroy']);
+    });
 
     // ── Activités GERANT & SUPER_ADMIN ─────────────────────────────────────────────
     Route::middleware('role:super_admin,gerant')->group(function () {
@@ -168,5 +215,6 @@ Route::middleware('auth:api')->group(function () {
         Route::patch('admin/gerants/{gerant}', [App\Http\Controllers\SuperAdminController::class, 'deactivateGerant']);
         Route::post('admin/gerants/{gerant}/activate', [App\Http\Controllers\SuperAdminController::class, 'activateGerant']);
         Route::put('admin/gerants/{gerant}/complexe', [App\Http\Controllers\SuperAdminController::class, 'assignComplexe']);
+        Route::delete('admin/gerants/{gerant}', [App\Http\Controllers\SuperAdminController::class, 'deleteGerant']);
     });
 });
