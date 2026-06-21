@@ -28,6 +28,13 @@ class Terrain extends Model
         'is_active'      => 'boolean',
     ];
 
+    protected $appends = ['image_url'];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image_t;
+    }
+
     public function complexe(): BelongsTo
     {
         return $this->belongsTo(Complexe::class, 'complexe_id');

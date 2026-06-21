@@ -110,7 +110,7 @@ class ProduitController extends Controller
             'sport_cible' => 'required|in:football,padel,tennis,natation,musculation,yoga,fitness,basketball,volleyball,handball,general',
             'niveau_cible' => 'required|in:debutant,intermediaire,expert,tous',
             'description' => 'nullable|string',
-            'image' => 'nullable|string',
+            'image' => 'nullable|url|max:1000',
             'reference' => 'nullable|string',
             'quantite_initiale' => 'required|integer|min:0',
             'quantite_minimale' => 'nullable|integer|min:1',
@@ -151,7 +151,7 @@ class ProduitController extends Controller
             'sport_cible' => 'sometimes|in:football,padel,tennis,natation,musculation,yoga,fitness,basketball,volleyball,handball,general',
             'niveau_cible' => 'sometimes|in:debutant,intermediaire,expert,tous',
             'description' => 'nullable|string',
-            'image' => 'nullable|string',
+            'image' => 'nullable|url|max:1000',
             'reference' => 'nullable|string',
             'actif' => 'sometimes|boolean',
         ]);

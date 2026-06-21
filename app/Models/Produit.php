@@ -27,7 +27,30 @@ class Produit extends Model
         'actif' => 'boolean',
     ];
 
-    protected $appends = ['disponible'];
+    protected $appends = ['disponible', 'image_url'];
+
+
+
+    public static function generateSlug(string $name): string
+    {
+        $slug = mb_strtolower($name, 'UTF-8');
+        $accents = [
+            'à' => 'a', 'á' => 'a', 'â' => 'a', 'ã' => 'a', 'ä' => 'a', 'å' => 'a', 'æ' => 'ae',
+            'ç' => 'c', 'è' => 'e', 'é' => 'e', 'ê' => 'e', 'ë' => 'e', 'ì' => 'i', 'í' => 'i',
+            'î' => 'i', 'ï' => 'i', 'ñ' => 'n', 'ò' => 'o', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o',
+            'ö' => 'o', 'œ' => 'oe', 'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ü' => 'u', 'ý' => 'y',
+            'ÿ' => 'y', 'š' => 's', 'ž' => 'z', 'đ' => 'd'
+        ];
+        $slug = strtr($slug, $accents);
+        $slug = preg_replace('/[^a-z0-9]+/i', '-', $slug);
+        $slug = preg_replace('/-+/', '-', $slug);
+        return trim($slug, '-');
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image;
+    }
 
     public function categorie(): BelongsTo
     {

@@ -70,6 +70,7 @@ class TerrainController extends Controller
             'sport_type'     => 'sometimes|string|max:50',
             'price_per_hour' => 'required|numeric|min:0',
             'is_active'      => 'sometimes|boolean',
+            'image_url'      => 'nullable|url|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -88,7 +89,14 @@ class TerrainController extends Controller
         $complexe = Complexe::whereIn('id', $myComplexeIds)->findOrFail($request->complexe_id);
         $this->authorizeOwner($complexe);
 
-        $terrain = Terrain::create($validator->validated());
+        $validated = $validator->validated();
+
+        if (array_key_exists('image_url', $validated)) {
+            $validated['image_t'] = $validated['image_url'];
+            unset($validated['image_url']);
+        }
+
+        $terrain = Terrain::create($validated);
 
         return response()->json([
             'success' => true,
@@ -111,11 +119,16 @@ class TerrainController extends Controller
     {
         $this->authorizeOwner($terrain->complexe);
 
+        $request->merge([
+            'image_url' => $request->image_url ?: null,
+        ]);
+
         $validator = Validator::make($request->all(), [
             'name'           => 'sometimes|string|min:2|max:100',
             'sport_type'     => 'sometimes|string|max:50',
             'price_per_hour' => 'sometimes|numeric|min:0',
             'is_active'      => 'sometimes|boolean',
+            'image_url'      => 'nullable|url|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -126,7 +139,14 @@ class TerrainController extends Controller
             ], 422);
         }
 
-        $terrain->update($validator->validated());
+        $validated = $validator->validated();
+
+        if (array_key_exists('image_url', $validated)) {
+            $validated['image_t'] = $validated['image_url'];
+            unset($validated['image_url']);
+        }
+
+        $terrain->update($validated);
 
         return response()->json([
             'success' => true,

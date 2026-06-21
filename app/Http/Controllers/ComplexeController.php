@@ -66,18 +66,24 @@ class ComplexeController extends Controller
             ], 403);
         }
 
+        $request->merge([
+            'image_url' => $request->image_url ?: null,
+            'facebook_url' => $request->facebook_url ?: null,
+            'instagram_url' => $request->instagram_url ?: null,
+            'website_url' => $request->website_url ?: null,
+        ]);
+
         $validator = Validator::make($request->all(), [
-            'name'        => 'required|string|min:2|max:100',
-            'description' => 'nullable|string|max:1000',
-            'address'     => 'required|string|max:255',
-            'city'        => 'nullable|string|max:100',
-            'phone'       => 'nullable|string|max:20',
-            'is_active'   => 'sometimes|boolean',
-            'image_c'     => 'nullable|string|max:500',
-            'website_c'   => 'nullable|string|max:500',
-            'facebook_c'  => 'nullable|string|max:500',
-            'instagram_c' => 'nullable|string|max:500',
-            'description_c' => 'nullable|string',
+            'name'         => 'required|string|min:2|max:100',
+            'description'  => 'nullable|string|max:1000',
+            'address'      => 'required|string|max:255',
+            'city'         => 'nullable|string|max:100',
+            'phone'        => 'nullable|string|max:20',
+            'is_active'    => 'sometimes|boolean',
+            'image_url'    => 'nullable|url|max:1000',
+            'facebook_url' => 'nullable|url|max:1000',
+            'instagram_url'=> 'nullable|url|max:1000',
+            'website_url'  => 'nullable|url|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -88,8 +94,27 @@ class ComplexeController extends Controller
             ], 422);
         }
 
+        $validated = $validator->validated();
+
+        if (array_key_exists('image_url', $validated)) {
+            $validated['image_c'] = $validated['image_url'];
+            unset($validated['image_url']);
+        }
+        if (array_key_exists('facebook_url', $validated)) {
+            $validated['facebook_c'] = $validated['facebook_url'];
+            unset($validated['facebook_url']);
+        }
+        if (array_key_exists('instagram_url', $validated)) {
+            $validated['instagram_c'] = $validated['instagram_url'];
+            unset($validated['instagram_url']);
+        }
+        if (array_key_exists('website_url', $validated)) {
+            $validated['website_c'] = $validated['website_url'];
+            unset($validated['website_url']);
+        }
+
         $complexe = Complexe::create([
-            ...$validator->validated(),
+            ...$validated,
             'owner_id' => auth('api')->id(),
         ]);
 
@@ -144,13 +169,24 @@ class ComplexeController extends Controller
     {
         $this->authorizeOwner($complexe);
 
+        $request->merge([
+            'image_url' => $request->image_url ?: null,
+            'facebook_url' => $request->facebook_url ?: null,
+            'instagram_url' => $request->instagram_url ?: null,
+            'website_url' => $request->website_url ?: null,
+        ]);
+
         $validator = Validator::make($request->all(), [
-            'name'        => 'sometimes|string|min:2|max:100',
-            'description' => 'nullable|string|max:1000',
-            'address'     => 'sometimes|string|max:255',
-            'city'        => 'nullable|string|max:100',
-            'phone'       => 'nullable|string|max:20',
-            'is_active'   => 'sometimes|boolean',
+            'name'         => 'sometimes|string|min:2|max:100',
+            'description'  => 'nullable|string|max:1000',
+            'address'      => 'sometimes|string|max:255',
+            'city'         => 'nullable|string|max:100',
+            'phone'        => 'nullable|string|max:20',
+            'is_active'    => 'sometimes|boolean',
+            'image_url'    => 'nullable|url|max:1000',
+            'facebook_url' => 'nullable|url|max:1000',
+            'instagram_url'=> 'nullable|url|max:1000',
+            'website_url'  => 'nullable|url|max:1000',
         ]);
 
         if ($validator->fails()) {
@@ -161,7 +197,26 @@ class ComplexeController extends Controller
             ], 422);
         }
 
-        $complexe->update($validator->validated());
+        $validated = $validator->validated();
+
+        if (array_key_exists('image_url', $validated)) {
+            $validated['image_c'] = $validated['image_url'];
+            unset($validated['image_url']);
+        }
+        if (array_key_exists('facebook_url', $validated)) {
+            $validated['facebook_c'] = $validated['facebook_url'];
+            unset($validated['facebook_url']);
+        }
+        if (array_key_exists('instagram_url', $validated)) {
+            $validated['instagram_c'] = $validated['instagram_url'];
+            unset($validated['instagram_url']);
+        }
+        if (array_key_exists('website_url', $validated)) {
+            $validated['website_c'] = $validated['website_url'];
+            unset($validated['website_url']);
+        }
+
+        $complexe->update($validated);
 
         return response()->json([
             'success' => true,

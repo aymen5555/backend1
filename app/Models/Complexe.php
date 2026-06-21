@@ -32,6 +32,28 @@ class Complexe extends Model
         'is_active' => 'boolean',
     ];
 
+    protected $appends = ['image_url', 'facebook_url', 'instagram_url', 'website_url'];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        return $this->image_c;
+    }
+
+    public function getFacebookUrlAttribute(): ?string
+    {
+        return $this->facebook_c;
+    }
+
+    public function getInstagramUrlAttribute(): ?string
+    {
+        return $this->instagram_c;
+    }
+
+    public function getWebsiteUrlAttribute(): ?string
+    {
+        return $this->website_c;
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');

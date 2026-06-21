@@ -12,8 +12,11 @@ class ProduitSeeder extends Seeder
 {
     public function run(): void
     {
-        $complexe = Complexe::first();
-        $complexeId = $complexe ? $complexe->id : 1;
+        $complexeIds = Complexe::pluck('id')->toArray();
+        if (empty($complexeIds)) {
+            $complexeIds = [1]; // fallback if no complexes exist yet
+        }
+        $n = count($complexeIds);
 
         $categories = [
             ['nom' => 'Raquettes & Balles', 'description' => 'Équipements de raquettes et balles pour sports de raquette'],
@@ -35,7 +38,7 @@ class ProduitSeeder extends Seeder
         $produits = [
             [
                 'categorie_id' => $raquettesEtBalles->id,
-                'complexe_id' => $complexeId,
+                'complexe_id' => $complexeIds[0 % $n],
                 'nom' => 'Raquette Padel Pro',
                 'description' => 'Raquette de padel professionnelle, idéale pour tous niveaux',
                 'prix' => 180.00,
@@ -45,7 +48,7 @@ class ProduitSeeder extends Seeder
             ],
             [
                 'categorie_id' => $raquettesEtBalles->id,
-                'complexe_id' => $complexeId,
+                'complexe_id' => $complexeIds[1 % $n],
                 'nom' => 'Balles de Tennis (tube x3)',
                 'description' => 'Tube de 3 balles de tennis bonne qualité',
                 'prix' => 18.00,
@@ -55,7 +58,7 @@ class ProduitSeeder extends Seeder
             ],
             [
                 'categorie_id' => $equipementFitness->id,
-                'complexe_id' => $complexeId,
+                'complexe_id' => $complexeIds[2 % $n],
                 'nom' => 'Tapis de Yoga',
                 'description' => 'Tapis de yoga antidérapant, épaisseur optimale',
                 'prix' => 65.00,
@@ -65,7 +68,7 @@ class ProduitSeeder extends Seeder
             ],
             [
                 'categorie_id' => $equipementFitness->id,
-                'complexe_id' => $complexeId,
+                'complexe_id' => $complexeIds[3 % $n],
                 'nom' => 'Gants de Musculation',
                 'description' => 'Gants de musculation pour un bon maintien',
                 'prix' => 35.00,
@@ -75,7 +78,7 @@ class ProduitSeeder extends Seeder
             ],
             [
                 'categorie_id' => $tenuesEtAccessoires->id,
-                'complexe_id' => $complexeId,
+                'complexe_id' => $complexeIds[4 % $n],
                 'nom' => 'Ballon de Football Taille 5',
                 'description' => 'Ballon de football officiel Taille 5 pour matchs et entraînements',
                 'prix' => 55.00,
@@ -85,7 +88,7 @@ class ProduitSeeder extends Seeder
             ],
             [
                 'categorie_id' => $tenuesEtAccessoires->id,
-                'complexe_id' => $complexeId,
+                'complexe_id' => $complexeIds[5 % $n],
                 'nom' => 'Filet de Volleyball',
                 'description' => 'Filet de volleyball professionnel pour terrain',
                 'prix' => 120.00,
@@ -98,6 +101,10 @@ class ProduitSeeder extends Seeder
         foreach ($produits as $produitData) {
             $quantiteInitiale = $produitData['quantite_initiale'];
             unset($produitData['quantite_initiale']);
+
+            // Explicitly generate the Picsum placeholder URL for seeded products
+            $slug = Produit::generateSlug($produitData['nom']);
+            $produitData['image'] = "https://picsum.photos/seed/{$slug}/400/400";
 
             $produit = Produit::create($produitData);
 
