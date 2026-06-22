@@ -25,6 +25,7 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\TerrainController;
 use App\Http\Controllers\ProduitController;
 use App\Http\Controllers\VenteDirecteController;
+use App\Http\Controllers\ImageUploadController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -73,6 +74,7 @@ Route::middleware('auth:api')->group(function () {
 
     // Complexes — GERANT & SUPER_ADMIN manage
     Route::middleware('role:super_admin,gerant')->group(function () {
+        Route::post('admin/upload-image', [ImageUploadController::class, 'upload']);
         Route::post('complexes', [ComplexeController::class, 'store']);
         Route::put(COMPLEXE_ROUTE, [ComplexeController::class, 'update']);
         Route::patch(COMPLEXE_ROUTE, [ComplexeController::class, 'update']);

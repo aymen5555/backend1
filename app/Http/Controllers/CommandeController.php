@@ -244,7 +244,7 @@ class CommandeController extends Controller
 
         $validator = Validator::make($request->all(), [
             'modalite_paiement' => 'required|in:especes,carte',
-            'reference' => 'required_if:modalite_paiement,carte|string',
+            'reference' => ['required_if:modalite_paiement,carte', 'nullable', 'string', 'max:30', 'regex:/^TXN-\d{4}-\d{3,8}$/i'],
         ]);
 
         if ($validator->fails()) {

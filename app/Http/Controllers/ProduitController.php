@@ -111,7 +111,13 @@ class ProduitController extends Controller
             'niveau_cible' => 'required|in:debutant,intermediaire,expert,tous',
             'description' => 'nullable|string',
             'image' => 'nullable|url|max:1000',
-            'reference' => 'nullable|string',
+            'reference' => [
+                'nullable',
+                'string',
+                'max:30',
+                'regex:/^PRD-[A-Z0-9]{2,5}-[A-Z0-9]{3,8}$/i',
+                'unique:produits,reference',
+            ],
             'quantite_initiale' => 'required|integer|min:0',
             'quantite_minimale' => 'nullable|integer|min:1',
         ]);
@@ -152,12 +158,26 @@ class ProduitController extends Controller
             'niveau_cible' => 'sometimes|in:debutant,intermediaire,expert,tous',
             'description' => 'nullable|string',
             'image' => 'nullable|url|max:1000',
-            'reference' => 'nullable|string',
+            'reference' => [
+                'nullable',
+                'string',
+                'max:30',
+                'regex:/^PRD-[A-Z0-9]{2,5}-[A-Z0-9]{3,8}$/i',
+                "unique:produits,reference,{$produit->id}",
+            ],
             'actif' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        // If the request includes a new complexe_id, ensure the acting user
+        // (when a gerant) is authorized for that complexe as well. This prevents
+        // a gerant from changing a produit to belong to another complexe.
+        if ($request->filled('complexe_id')) {
+            $newComplexe = Complexe::findOrFail($request->complexe_id);
+            $this->authorizeGerant($newComplexe);
         }
 
         $produit->update($validator->validated());

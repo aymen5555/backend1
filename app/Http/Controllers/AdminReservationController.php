@@ -235,7 +235,7 @@ class AdminReservationController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'reference' => 'required|string',
+            'reference' => ['required', 'string', 'max:30', 'regex:/^TXN-\d{4}-\d{3,8}$/i'],
             'montant'   => 'required|numeric|min:0',
         ]);
 

@@ -98,13 +98,15 @@ class ProduitSeeder extends Seeder
             ],
         ];
 
+        // Note: Products are now distributed across available complexes using modulo operator
+        // This ensures that if you have multiple complexes, each gets different products
+        // and the shop demo experience shows diverse inventory across locations
+
         foreach ($produits as $produitData) {
             $quantiteInitiale = $produitData['quantite_initiale'];
             unset($produitData['quantite_initiale']);
 
-            // Explicitly generate the Picsum placeholder URL for seeded products
-            $slug = Produit::generateSlug($produitData['nom']);
-            $produitData['image'] = "https://picsum.photos/seed/{$slug}/400/400";
+            $produitData['image'] = null;
 
             $produit = Produit::create($produitData);
 

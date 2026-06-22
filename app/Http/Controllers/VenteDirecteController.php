@@ -74,9 +74,23 @@ class VenteDirecteController extends Controller
             $prixUnitaire = $produit->prix;
             $montantTotal = $prixUnitaire * $request->quantite;
 
+            // Generate unique reference TXN-YYYY-NNNNN for this year
+            $year = date('Y');
+            $prefix = "TXN-{$year}-";
+            $existing = VenteDirecte::where('reference', 'like', $prefix . '%')->pluck('reference');
+            $maxSeq = 0;
+            foreach ($existing as $ref) {
+                $parts = explode('-', $ref);
+                $seq = intval(end($parts));
+                if ($seq > $maxSeq) $maxSeq = $seq;
+            }
+            $nextSeq = $maxSeq + 1;
+            $reference = $prefix . str_pad($nextSeq, 5, '0', STR_PAD_LEFT);
+
             $vente = VenteDirecte::create([
                 'produit_id' => $produit->id,
                 'complexe_id' => $complexeId,
+                'reference' => $reference,
                 'quantite' => $request->quantite,
                 'prix_unitaire' => $prixUnitaire,
                 'montant_total' => $montantTotal,

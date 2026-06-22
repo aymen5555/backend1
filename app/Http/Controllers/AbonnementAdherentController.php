@@ -160,7 +160,7 @@ class AbonnementAdherentController extends Controller
 
         $validator = Validator::make($request->all(), [
             'modalite_paiement' => 'required|in:especes,carte',
-            'reference' => 'nullable|string',
+            'reference' => ['nullable', 'string', 'max:30', 'regex:/^TXN-\d{4}-\d{3,8}$/i'],
         ]);
 
         if ($validator->fails()) {
@@ -422,7 +422,7 @@ class AbonnementAdherentController extends Controller
         $validator = Validator::make($request->all(), [
             'modalite_paiement' => 'required|in:especes,carte',
             'montant' => 'required|numeric|min:0',
-            'reference' => 'nullable|string',
+            'reference' => ['nullable', 'string', 'max:30', 'regex:/^TXN-\d{4}-\d{3,8}$/i'],
         ]);
 
         if ($validator->fails()) {

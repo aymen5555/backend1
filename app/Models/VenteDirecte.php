@@ -10,6 +10,7 @@ class VenteDirecte extends Model
     protected $fillable = [
         'produit_id',
         'complexe_id',
+        'reference',
         'quantite',
         'prix_unitaire',
         'montant_total',
