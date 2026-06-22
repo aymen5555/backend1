@@ -33,6 +33,19 @@ class CategorieProduitController extends Controller
      | ADMIN - SUPER_ADMIN only
      ----------------------------------------------------- */
 
+    /** GET /api/admin/categories-produits */
+    public function adminIndex(): JsonResponse
+    {
+        $categories = CategorieProduit::withCount(['produits as produits_count'])
+            ->latest()
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $categories,
+        ]);
+    }
+
     /** POST /api/admin/categories-produits */
     public function store(Request $request): JsonResponse
     {
@@ -85,8 +98,18 @@ class CategorieProduitController extends Controller
     /** DELETE /api/admin/categories-produits/{id} */
     public function destroy(CategorieProduit $categorie): JsonResponse
     {
-        $categorie->update(['active' => false]);
+        if ($categorie->produits()->count() > 0) {
+            $categorie->update(['active' => false]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Catégorie associée à des produits : elle a été désactivée au lieu d\'être supprimée.'
+            ]);
+        }
 
-        return response()->json(['success' => true, 'message' => 'Catégorie désactivée.']);
+        $categorie->delete();
+        return response()->json([
+            'success' => true,
+            'message' => 'Catégorie supprimée définitivement.'
+        ]);
     }
 }

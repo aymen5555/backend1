@@ -188,6 +188,7 @@ Route::middleware('auth:api')->group(function () {
 
     // ── Categories SUPER_ADMIN only ───────────────────────────────────────────
     Route::middleware('role:super_admin')->group(function () {
+        Route::get('admin/categories-produits', [CategorieProduitController::class, 'adminIndex']);
         Route::post('admin/categories-produits', [CategorieProduitController::class, 'store']);
         Route::put('admin/categories-produits/{categorie}', [CategorieProduitController::class, 'update']);
         Route::delete('admin/categories-produits/{categorie}', [CategorieProduitController::class, 'destroy']);

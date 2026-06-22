@@ -193,9 +193,16 @@ class ProduitController extends Controller
     {
         $this->authorizeGerant($produit->complexe);
 
-        $produit->update(['actif' => false]);
+        if ($produit->ligneCommandes()->count() > 0 || $produit->ventesDirectes()->count() > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de supprimer : ce produit a des ventes ou des commandes liées. Désactivez-le à la place.'
+            ], 422);
+        }
 
-        return response()->json(['success' => true, 'message' => 'Produit désactivé.']);
+        $produit->delete();
+
+        return response()->json(['success' => true, 'message' => 'Produit supprimé définitivement.']);
     }
 
     /** PUT /api/admin/produits/{id}/stock */

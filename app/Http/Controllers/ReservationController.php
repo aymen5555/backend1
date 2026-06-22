@@ -290,7 +290,11 @@ class ReservationController extends Controller
         $user = $reservation->user;
         $complexeId = $reservation->terrain->complexe_id;
         $prixBase = $reservation->terrain->price_per_hour ?? 0;
-        $montant = $user->isAdherentAt($complexeId) ? round($prixBase * 0.80, 2) : $prixBase;
+        // Calculate price based on actual duration in hours
+        $startAt = Carbon::parse($reservation->start_at);
+        $endAt = Carbon::parse($reservation->end_at);
+        $hours = max(1, round($startAt->diffInMinutes($endAt) / 60, 2));
+        $montant = $user->isAdherentAt($complexeId) ? round($prixBase * $hours * 0.80, 2) : round($prixBase * $hours, 2);
 
         $reservation->update([
             'status'          => 'confirmed',

@@ -387,9 +387,10 @@ class ActiviteController extends Controller
     public function destroy(Activite $activite): JsonResponse
     {
         $this->authorizeAdmin($activite);
-        $activite->delete();
+        // Soft-delete: just deactivate to preserve historical reservations
+        $activite->update(['active' => false]);
 
-        return response()->json(['success' => true, 'message' => 'Activité supprimée.']);
+        return response()->json(['success' => true, 'message' => 'Activité désactivée.']);
     }
 
     /** GET /api/admin/activites/reservations */

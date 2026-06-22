@@ -335,8 +335,9 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        $type->delete();
-        return response()->json(['success' => true, 'message' => 'Type d\'abonnement supprimé.']);
+        // Soft-delete: just deactivate to preserve existing subscriptions referencing this type
+        $type->update(['active' => false]);
+        return response()->json(['success' => true, 'message' => 'Type d\'abonnement désactivé.']);
     }
 
     public function adminAbonnements(): JsonResponse
