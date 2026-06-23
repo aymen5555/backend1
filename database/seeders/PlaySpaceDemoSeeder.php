@@ -19,8 +19,9 @@ class PlaySpaceDemoSeeder extends Seeder
 
         // Complexe 1: Olympysky Club
         $complexe1 = Complexe::firstOrCreate(
-            ['owner_id' => $admin->id, 'name' => 'Olympysky Club'],
+            ['name' => 'Olympysky Club'],
             [
+                'owner_id'          => $admin->id,
                 'description'       => 'Demo padel complex in Tunis – courts available for booking.',
                 'address'           => 'Avenue Beji Caid Essebsi, Les Berges du Lac 2, Tunis',
                 'city'              => 'Tunis',
@@ -67,8 +68,9 @@ class PlaySpaceDemoSeeder extends Seeder
 
         // Complexe 2: Padel House Tunisia
         $complexe2 = Complexe::firstOrCreate(
-            ['owner_id' => $admin->id, 'name' => 'Padel House Tunisia'],
+            ['name' => 'Padel House Tunisia'],
             [
+                'owner_id'           => $admin->id,
                 'description'        => 'Demo padel complex in Tunis – courts available for booking.',
                 'address'            => '676 Sidi Amor, Ariana, Tunis',
                 'city'               => 'Ariana',
@@ -113,8 +115,9 @@ class PlaySpaceDemoSeeder extends Seeder
 
         // Complexe 3: Tennis Club de Tunis
         $complexe3 = Complexe::firstOrCreate(
-            ['owner_id' => $admin->id, 'name' => 'Tennis Club de Tunis'],
+            ['name' => 'Tennis Club de Tunis'],
             [
+                'owner_id'           => $admin->id,
                 'description'        => 'Demo padel complex in Tunis – courts available for booking.',
                 'address'            => '20bis Avenue Alain-Savary, Belvédère, Tunis',
                 'city'               => 'Tunis',
@@ -160,8 +163,9 @@ class PlaySpaceDemoSeeder extends Seeder
 
         // Complexe 4: Padel Marsa
         $complexe4 = Complexe::firstOrCreate(
-            ['owner_id' => $admin->id, 'name' => 'Padel Marsa'],
+            ['name' => 'Padel Marsa'],
             [
+                'owner_id'           => $admin->id,
                 'description'        => 'Demo padel complex in Tunis – courts available for booking.',
                 'address'            => 'Site archeologique de Carthage, La Marsa, Tunis',
                 'city'               => 'La Marsa',
@@ -206,8 +210,9 @@ class PlaySpaceDemoSeeder extends Seeder
 
         // Complexe 5: Sassi Padel Club
         $complexe5 = Complexe::firstOrCreate(
-            ['owner_id' => $admin->id, 'name' => 'Sassi Padel Club'],
+            ['name' => 'Sassi Padel Club'],
             [
+                'owner_id'           => $admin->id,
                 'description'        => 'Demo padel complex in Tunis – courts available for booking.',
                 'address'            => 'Sidi Hssine, Tunis',
                 'city'               => 'Tunis',
@@ -252,8 +257,9 @@ class PlaySpaceDemoSeeder extends Seeder
 
         // Complexe 6: Padel Indoor La Soukra
         $complexe6 = Complexe::firstOrCreate(
-            ['owner_id' => $admin->id, 'name' => 'Padel Indoor La Soukra'],
+            ['name' => 'Padel Indoor La Soukra'],
             [
+                'owner_id'           => $admin->id,
                 'description'        => 'Demo padel complex in Tunis – courts available for booking.',
                 'address'            => 'La Soukra, Ariana, Tunis',
                 'city'               => 'Ariana',

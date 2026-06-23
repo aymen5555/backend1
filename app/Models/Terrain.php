@@ -32,6 +32,9 @@ class Terrain extends Model
 
     public function getImageUrlAttribute(): ?string
     {
+        if ($this->image_t && !str_starts_with($this->image_t, 'http')) {
+            return url($this->image_t);
+        }
         return $this->image_t;
     }
 

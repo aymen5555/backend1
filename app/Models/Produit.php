@@ -27,7 +27,7 @@ class Produit extends Model
         'actif' => 'boolean',
     ];
 
-    protected $appends = ['disponible', 'image_url'];
+    protected $appends = ['disponible', 'image_url', 'average_rating'];
 
 
 
@@ -49,6 +49,9 @@ class Produit extends Model
 
     public function getImageUrlAttribute(): ?string
     {
+        if ($this->image && !str_starts_with($this->image, 'http')) {
+            return url($this->image);
+        }
         return $this->image;
     }
 
@@ -80,5 +83,16 @@ class Produit extends Model
     public function getDisponibleAttribute(): bool
     {
         return $this->stock && $this->stock->quantite_disponible > 0;
+    }
+
+    public function notations(): HasMany
+    {
+        return $this->hasMany(NotationProduit::class, 'produit_id');
+    }
+
+    public function getAverageRatingAttribute(): ?float
+    {
+        $avg = $this->notations()->avg('note');
+        return $avg !== null ? round((float) $avg, 1) : null;
     }
 }

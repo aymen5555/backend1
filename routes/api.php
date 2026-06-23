@@ -22,7 +22,9 @@ use App\Http\Controllers\FournisseurController;
 use App\Http\Controllers\ProfilFitnessController;
 use App\Http\Controllers\RecommandationController;
 use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TerrainController;
+use App\Http\Controllers\NotationController;
 use App\Http\Controllers\ProduitController;
 use App\Http\Controllers\VenteDirecteController;
 use App\Http\Controllers\ImageUploadController;
@@ -111,6 +113,10 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('admin/reservations/{reservation}', [AdminReservationController::class, 'adminDestroy']);
     });
 
+    // User Profile
+    Route::get('profile', [ProfileController::class, 'show']);
+    Route::put('profile', [ProfileController::class, 'update']);
+
     // Fitness Profile
     Route::get('profile-fitness', [ProfilFitnessController::class, 'show']);
     Route::post('profile-fitness', [ProfilFitnessController::class, 'store']);
@@ -118,6 +124,17 @@ Route::middleware('auth:api')->group(function () {
 
     // Recommendations
     Route::get('recommendations', [RecommandationController::class, 'index']);
+    Route::get('recommendations/produits', [RecommandationController::class, 'produits']);
+    Route::get('recommendations/activites', [RecommandationController::class, 'activites']);
+
+    // Notations / Reviews
+    Route::get('notations/complexe/{id}', [NotationController::class, 'forComplexe']);
+    Route::get('notations/produit/{id}', [NotationController::class, 'forProduit']);
+    Route::get('notations/eligibility', [NotationController::class, 'myEligibility']);
+    Route::post('notations/complexe', [NotationController::class, 'storeComplexe']);
+    Route::post('notations/produit', [NotationController::class, 'storeProduit']);
+    Route::delete('notations/complexe/{id}', [NotationController::class, 'destroyComplexe']);
+    Route::delete('notations/produit/{id}', [NotationController::class, 'destroyProduit']);
 
     // ── Adhérent subscription system ──────────────────────────────────────────
     // Client routes (any authenticated user)

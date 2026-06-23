@@ -36,6 +36,9 @@ class Complexe extends Model
 
     public function getImageUrlAttribute(): ?string
     {
+        if ($this->image_c && !str_starts_with($this->image_c, 'http')) {
+            return url($this->image_c);
+        }
         return $this->image_c;
     }
 
@@ -67,5 +70,10 @@ class Complexe extends Model
     public function activites(): HasMany
     {
         return $this->hasMany(Activite::class, 'complexe_id');
+    }
+
+    public function notations(): HasMany
+    {
+        return $this->hasMany(NotationComplexe::class, 'complexe_id');
     }
 }

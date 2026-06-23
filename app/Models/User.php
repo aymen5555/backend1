@@ -23,6 +23,11 @@ class User extends Authenticatable implements JWTSubject
         'role',
         'email_verified_at',
         'is_active',
+        'address',
+        'date_naissance',
+        'sexe',
+        'profession',
+        'image_url',
     ];
 
     protected $hidden = [
@@ -75,7 +80,7 @@ class User extends Authenticatable implements JWTSubject
 
     public function isAdmin(): bool
     {
-        return $this->role === 'super_admin';
+        return $this->role === 'super_admin' || $this->role === 'admin';
     }
 
     public function isGerant(): bool

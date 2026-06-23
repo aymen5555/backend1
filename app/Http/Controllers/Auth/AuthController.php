@@ -316,6 +316,11 @@ class AuthController extends Controller
             'phone'             => $user->phone,
             'role'              => $user->role,
             'is_active'         => $user->is_active,
+            'address'           => $user->address,
+            'date_naissance'    => $user->date_naissance ? (is_string($user->date_naissance) ? $user->date_naissance : $user->date_naissance->toDateString()) : null,
+            'sexe'              => $user->sexe,
+            'profession'        => $user->profession,
+            'image_url'         => $user->image_url,
             'email_verified_at' => $user->email_verified_at,
             'created_at'        => $user->created_at,
         ];

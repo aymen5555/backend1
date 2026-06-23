@@ -6,6 +6,10 @@ use App\Models\Complexe;
 use App\Models\ProfilFitness;
 use App\Models\RecommandationComplexe;
 use App\Models\User;
+use App\Models\Produit;
+use App\Models\Activite;
+use App\Models\RecommandationProduit;
+use App\Models\RecommandationActivite;
 use Illuminate\Support\Collection;
 
 class RecommandationService
@@ -136,12 +140,194 @@ class RecommandationService
     }
 
     /**
+     * Generate top-3 product recommendations for a user.
+     */
+    public function generateProduits(User $user): array
+    {
+        $profil = ProfilFitness::where('user_id', $user->id)->first();
+
+        if (!$profil) {
+            $topProducts = Produit::where('actif', true)
+                ->take(3)
+                ->get();
+
+            $recommendations = $topProducts->values()->map(function (Produit $p, int $index) {
+                return [
+                    'rang'        => $index + 1,
+                    'score'       => 0,
+                    'produit'     => $p,
+                    'explication' => 'Complétez votre profil fitness pour des recommandations personnalisées.',
+                ];
+            });
+
+            return [
+                'has_profile'    => false,
+                'recommendations' => $recommendations->toArray(),
+            ];
+        }
+
+        RecommandationProduit::where('user_id', $user->id)->delete();
+
+        $produits = Produit::where('actif', true)->get();
+        $scored = collect();
+
+        foreach ($produits as $produit) {
+            $score   = 0;
+            $reasons = [];
+
+            if ($produit->sport_cible && strtolower(trim($produit->sport_cible)) === strtolower(trim($profil->sport_prefere))) {
+                $score += 40;
+                $reasons[] = "Ce produit est conçu pour le {$profil->sport_prefere}, votre sport préféré";
+            }
+
+            if ($produit->niveau_cible && strtolower(trim($produit->niveau_cible)) === strtolower(trim($profil->niveau_sportif))) {
+                $score += 30;
+                $reasons[] = "adapté à votre niveau {$profil->niveau_sportif}";
+            }
+
+            if ($profil->budget_mensuel_max) {
+                if ($produit->prix <= $profil->budget_mensuel_max) {
+                    $score += 30;
+                    $reasons[] = "et s'intègre dans votre budget";
+                }
+            } else {
+                $score += 30;
+            }
+
+            $scored->push([
+                'produit'     => $produit,
+                'score'       => $score,
+                'explication' => $this->buildExplication($reasons, $produit),
+            ]);
+        }
+
+        $top3 = $scored->sortByDesc('score')->values()->take(3);
+
+        $saved = [];
+        foreach ($top3 as $rang => $item) {
+            $rec = RecommandationProduit::create([
+                'user_id'    => $user->id,
+                'produit_id' => $item['produit']->id,
+                'score'      => $item['score'],
+                'rang'       => $rang + 1,
+                'explication'=> $item['explication'],
+            ]);
+            $rec->setRelation('produit', $item['produit']);
+            $saved[] = $rec;
+        }
+
+        return [
+            'has_profile'    => true,
+            'recommendations' => collect($saved)->map(function ($r) {
+                return [
+                    'rang'        => $r->rang,
+                    'score'       => $r->score,
+                    'produit'     => $r->produit,
+                    'explication' => $r->explication,
+                ];
+            })->toArray(),
+        ];
+    }
+
+    /**
+     * Generate top-3 activity recommendations for a user.
+     */
+    public function generateActivites(User $user): array
+    {
+        $profil = ProfilFitness::where('user_id', $user->id)->first();
+
+        if (!$profil) {
+            $topActivities = Activite::where('active', true)
+                ->take(3)
+                ->get();
+
+            $recommendations = $topActivities->values()->map(function (Activite $a, int $index) {
+                return [
+                    'rang'        => $index + 1,
+                    'score'       => 0,
+                    'activite'    => $a->load('complexe'),
+                    'explication' => 'Complétez votre profil fitness pour des recommandations personnalisées.',
+                ];
+            });
+
+            return [
+                'has_profile'    => false,
+                'recommendations' => $recommendations->toArray(),
+            ];
+        }
+
+        RecommandationActivite::where('user_id', $user->id)->delete();
+
+        $activities = Activite::with('complexe')->where('active', true)->get();
+        $scored = collect();
+
+        foreach ($activities as $activity) {
+            $score   = 0;
+            $reasons = [];
+
+            if ($activity->sport && strtolower(trim($activity->sport)) === strtolower(trim($profil->sport_prefere))) {
+                $score += 40;
+                $reasons[] = "Cette activité propose du {$profil->sport_prefere}, votre sport préféré";
+            }
+
+            if ($activity->niveau && strtolower(trim($activity->niveau)) === strtolower(trim($profil->niveau_sportif))) {
+                $score += 30;
+                $reasons[] = "adaptée à votre niveau {$profil->niveau_sportif}";
+            }
+
+            if ($profil->budget_mensuel_max) {
+                $budgetParSeance = $profil->budget_mensuel_max / 4;
+                if ($activity->prix <= $budgetParSeance) {
+                    $score += 30;
+                    $reasons[] = "avec un tarif adapté";
+                }
+            } else {
+                $score += 30;
+            }
+
+            $scored->push([
+                'activite'    => $activity,
+                'score'       => $score,
+                'explication' => $this->buildExplication($reasons, $activity),
+            ]);
+        }
+
+        $top3 = $scored->sortByDesc('score')->values()->take(3);
+
+        $saved = [];
+        foreach ($top3 as $rang => $item) {
+            $rec = RecommandationActivite::create([
+                'user_id'     => $user->id,
+                'activite_id' => $item['activite']->id,
+                'score'       => $item['score'],
+                'rang'        => $rang + 1,
+                'explication' => $item['explication'],
+            ]);
+            $rec->setRelation('activite', $item['activite']);
+            $saved[] = $rec;
+        }
+
+        return [
+            'has_profile'    => true,
+            'recommendations' => collect($saved)->map(function ($r) {
+                return [
+                    'rang'        => $r->rang,
+                    'score'       => $r->score,
+                    'activite'    => $r->activite,
+                    'explication' => $r->explication,
+                ];
+            })->toArray(),
+        ];
+    }
+
+    /**
      * Build a French explanation string from reason fragments.
      */
-    private function buildExplication(array $reasons, Complexe $complexe): string
+    private function buildExplication(array $reasons, $item): string
     {
         if (empty($reasons)) {
-            return "{$complexe->name} est un complexe sportif recommandé pour vous.";
+            $name = $item->name ?? $item->nom ?? 'Cet élément';
+            return "{$name} est recommandé pour vous.";
         }
 
         return implode(', ', $reasons) . '.';

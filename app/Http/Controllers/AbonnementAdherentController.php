@@ -376,36 +376,63 @@ class AbonnementAdherentController extends Controller
      */
     public function stats(): JsonResponse
     {
-        $user = auth('api')->user();
-        if (!$user) {
-            return response()->json(['success' => false, 'message' => 'Unauthorized.'], 401);
+        try {
+            $user = auth('api')->user();
+            if (!$user) {
+                return response()->json(['success' => false, 'message' => 'Unauthorized.'], 401);
+            }
+
+            $query   = TypeAbonnementAdherent::query();
+            $abQuery = AbonnementAdherent::query();
+
+            if ($user->isGerant()) {
+                $complexeId = Complexe::where('owner_id', $user->id)->value('id');
+
+                // Gérant without an assigned complexe or complexe not found → return zeroed stats
+                if (!$complexeId) {
+                    return response()->json([
+                        'success' => true,
+                        'data' => [
+                            'formules'            => 0,
+                            'actifs'              => 0,
+                            'complexes'           => 0,
+                            'en_attente_paiement' => 0,
+                            'total_du'            => 0,
+                        ],
+                    ]);
+                }
+
+                $query->where('complexe_id', $complexeId);
+                $abQuery->where('complexe_id', $complexeId);
+            }
+
+            $formules      = $query->where('active', true)->count();
+            $actifs        = (clone $abQuery)->where('statut', 'actif')->count();
+            $enAttente     = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->count();
+            $totalDu       = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->sum('reste_a_payer');
+            $complexesCount = $user->isGerant() ? 1 : Complexe::where('is_active', true)->count();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'formules'            => $formules,
+                    'actifs'              => $actifs,
+                    'complexes'           => $complexesCount,
+                    'en_attente_paiement' => $enAttente,
+                    'total_du'            => $totalDu,
+                ],
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error in AbonnementAdherentController@stats: ' . $e->getMessage(), [
+                'exception' => $e,
+                'user_id'   => auth('api')->id() ?? 'unknown',
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Erreur lors du chargement des statistiques.',
+                'error'   => $e->getMessage(),
+            ], 500);
         }
-
-        $query = TypeAbonnementAdherent::query();
-        $abQuery = AbonnementAdherent::query();
-
-        if ($user->isGerant()) {
-            $complexeId = Complexe::where('owner_id', $user->id)->value('id');
-            $query->where('complexe_id', $complexeId);
-            $abQuery->where('complexe_id', $complexeId);
-        }
-
-        $formules = $query->where('active', true)->count();
-        $actifs = (clone $abQuery)->where('statut', 'actif')->count();
-        $enAttente = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->count();
-        $totalDu = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->sum('reste_a_payer');
-        $complexesCount = $user->isGerant() ? 1 : Complexe::where('active', true)->count();
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'formules' => $formules,
-                'actifs' => $actifs,
-                'complexes' => $complexesCount,
-                'en_attente_paiement' => $enAttente,
-                'total_du' => $totalDu,
-            ],
-        ]);
     }
 
     public function adminConfirmPayment(Request $request, $id): JsonResponse

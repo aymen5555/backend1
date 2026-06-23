@@ -58,4 +58,34 @@ class RecommandationController extends Controller
             'recommendations' => $result['recommendations'],
         ]);
     }
+
+    /**
+     * GET /api/recommendations/produits
+     */
+    public function produits(): JsonResponse
+    {
+        $user = JWTAuth::user();
+        $result = $this->recommandationSvc->generateProduits($user);
+
+        return response()->json([
+            'success'         => true,
+            'has_profile'     => $result['has_profile'],
+            'recommendations' => $result['recommendations'],
+        ]);
+    }
+
+    /**
+     * GET /api/recommendations/activites
+     */
+    public function activites(): JsonResponse
+    {
+        $user = JWTAuth::user();
+        $result = $this->recommandationSvc->generateActivites($user);
+
+        return response()->json([
+            'success'         => true,
+            'has_profile'     => $result['has_profile'],
+            'recommendations' => $result['recommendations'],
+        ]);
+    }
 }

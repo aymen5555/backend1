@@ -108,13 +108,21 @@ class ProduitSeeder extends Seeder
 
             $produitData['image'] = null;
 
-            $produit = Produit::create($produitData);
+            $produit = Produit::firstOrCreate(
+                [
+                    'nom' => $produitData['nom'],
+                    'complexe_id' => $produitData['complexe_id'],
+                ],
+                $produitData
+            );
 
-            Stock::create([
-                'produit_id' => $produit->id,
-                'quantite_disponible' => $quantiteInitiale,
-                'quantite_minimale' => 5,
-            ]);
+            Stock::firstOrCreate(
+                ['produit_id' => $produit->id],
+                [
+                    'quantite_disponible' => $quantiteInitiale,
+                    'quantite_minimale' => 5,
+                ]
+            );
         }
     }
 }

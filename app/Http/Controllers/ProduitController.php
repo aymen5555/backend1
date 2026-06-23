@@ -110,7 +110,7 @@ class ProduitController extends Controller
             'sport_cible' => 'required|in:football,padel,tennis,natation,musculation,yoga,fitness,basketball,volleyball,handball,general',
             'niveau_cible' => 'required|in:debutant,intermediaire,expert,tous',
             'description' => 'nullable|string',
-            'image' => 'nullable|url|max:1000',
+            'image' => 'nullable|string|max:2000',
             'reference' => [
                 'nullable',
                 'string',
@@ -157,7 +157,7 @@ class ProduitController extends Controller
             'sport_cible' => 'sometimes|in:football,padel,tennis,natation,musculation,yoga,fitness,basketball,volleyball,handball,general',
             'niveau_cible' => 'sometimes|in:debutant,intermediaire,expert,tous',
             'description' => 'nullable|string',
-            'image' => 'nullable|url|max:1000',
+            'image' => 'nullable|string|max:2000',
             'reference' => [
                 'nullable',
                 'string',

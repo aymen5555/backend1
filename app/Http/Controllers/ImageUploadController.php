@@ -1,55 +1,45 @@
 <?php
- 
+
 namespace App\Http\Controllers;
- 
+
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
- 
+
 class ImageUploadController extends Controller
 {
-    /**
-     * Handle the image upload.
-     *
-     * POST /api/admin/upload-image
-     */
     public function upload(Request $request): JsonResponse
     {
         $user = auth('api')->user();
         if (!$user || !$user->isGerantOrAdmin()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Forbidden. Only GERANT or ADMIN can upload images.',
-            ], 403);
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
- 
+
         $validator = Validator::make($request->all(), [
             'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120',
+        ], [
+            'image.required' => 'Aucun fichier reçu.',
+            'image.image'    => 'Le fichier doit être une image.',
+            'image.mimes'    => 'Seuls les formats JPG, PNG et WEBP sont acceptés.',
+            'image.max'      => 'Le fichier ne doit pas dépasser 5 Mo.',
         ]);
- 
+
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Validation failed.',
+                'message' => $validator->errors()->first('image'),
                 'errors'  => $validator->errors(),
             ], 422);
         }
- 
+
         try {
-            $file = $request->file('image');
-            $path = $file->store('uploads', 'public');
-            
+            $path = $request->file('image')->store('uploads', 'public');
             return response()->json([
                 'success' => true,
-                'message' => 'Image uploaded successfully.',
-                'url'     => '/storage/' . $path,
-            ], 200);
+                'url'     => url('/storage/' . $path),
+            ]);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to store image.',
-                'error'   => $e->getMessage(),
-            ], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
 }
