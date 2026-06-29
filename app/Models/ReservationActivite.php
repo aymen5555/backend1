@@ -2,11 +2,15 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ReservationActivite extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'activite_id',
         'user_id',
@@ -15,6 +19,8 @@ class ReservationActivite extends Model
         'statut_paiement',
         'modalite_paiement',
         'notes',
+        'montant_paye',
+        'reference_paiement',
     ];
 
     protected $casts = [
@@ -29,5 +35,23 @@ class ReservationActivite extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public static function updateExpiredStatus(): void
+    {
+        $now = Carbon::now('Africa/Tunis');
+        $todayStr = $now->toDateString();
+        $timeStr = $now->toTimeString();
+
+        self::where('statut', 'reservee')
+            ->where('date_seance', '<', $todayStr)
+            ->update(['statut' => 'expiree']);
+
+        self::where('statut', 'reservee')
+            ->where('date_seance', '=', $todayStr)
+            ->whereHas('activite', function ($query) use ($timeStr) {
+                $query->where('heure_debut', '<', $timeStr);
+            })
+            ->update(['statut' => 'expiree']);
     }
 }

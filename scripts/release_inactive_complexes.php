@@ -1,12 +1,14 @@
 <?php
+
 // Usage: php release_inactive_complexes.php
-require __DIR__ . '/../vendor/autoload.php';
-$app = require_once __DIR__ . '/../bootstrap/app.php';
-$kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
+require __DIR__.'/../vendor/autoload.php';
+$app = require_once __DIR__.'/../bootstrap/app.php';
+$kernel = $app->make(Kernel::class);
 $kernel->bootstrap();
 
 use App\Models\Complexe;
 use App\Models\User;
+use Illuminate\Contracts\Console\Kernel;
 
 try {
     $inactiveOwnerIds = User::where('is_active', false)->pluck('id')->toArray();
@@ -15,7 +17,7 @@ try {
         ->get(['id', 'owner_id', 'name'])
         ->toArray();
 
-    $backupPath = __DIR__ . "/../storage/release_inactive_complexes_backup_" . date('Ymd_His') . ".json";
+    $backupPath = __DIR__.'/../storage/release_inactive_complexes_backup_'.date('Ymd_His').'.json';
     @mkdir(dirname($backupPath), 0755, true);
     file_put_contents($backupPath, json_encode($backup, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
@@ -25,7 +27,7 @@ try {
     echo "Backup written to: $backupPath\n";
     echo "Complexes released (owner_id set to NULL): $affected\n";
 } catch (Throwable $e) {
-    echo "Error: " . $e->getMessage() . "\n";
+    echo 'Error: '.$e->getMessage()."\n";
     exit(1);
 }
 

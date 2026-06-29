@@ -7,7 +7,6 @@ use App\Models\Fournisseur;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 class FournisseurController extends Controller
 {
@@ -72,6 +71,7 @@ class FournisseurController extends Controller
             'telephone' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'adresse' => 'nullable|string',
+            'actif' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {

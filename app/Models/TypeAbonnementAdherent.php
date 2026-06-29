@@ -24,14 +24,15 @@ class TypeAbonnementAdherent extends Model
         'sport_cible',
         'avantages',
         'active',
+        'categorie_abonnement_adherent_id',
     ];
 
     protected $casts = [
         'avantages' => 'array',
-        'active'    => 'boolean',
-        'tarif'     => 'float',
+        'active' => 'boolean',
+        'tarif' => 'float',
         'prix_unitaire' => 'float',
-        'nb_mois'   => 'integer',
+        'nb_mois' => 'integer',
     ];
 
     public function complexe(): BelongsTo
@@ -42,5 +43,15 @@ class TypeAbonnementAdherent extends Model
     public function abonnements(): HasMany
     {
         return $this->hasMany(AbonnementAdherent::class, 'type_abonnement_id');
+    }
+
+    public function categorieAbonnementAdherent(): BelongsTo
+    {
+        return $this->belongsTo(CategorieAbonnementAdherent::class, 'categorie_abonnement_adherent_id');
+    }
+
+    public function detailsAbonnements(): HasMany
+    {
+        return $this->hasMany(DetailAbonnement::class, 'type_abonnement_adherent_id');
     }
 }

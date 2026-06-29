@@ -17,10 +17,10 @@ return new class extends Migration
             $table->float('prix');
             $table->float('prix_achat')->nullable();
             $table->enum('sport_cible', [
-                'football','padel','tennis','natation','musculation',
-                'yoga','fitness','basketball','volleyball','handball','general'
+                'football', 'padel', 'tennis', 'natation', 'musculation',
+                'yoga', 'fitness', 'basketball', 'volleyball', 'handball', 'general',
             ]);
-            $table->enum('niveau_cible', ['debutant','intermediaire','expert','tous']);
+            $table->enum('niveau_cible', ['debutant', 'intermediaire', 'expert', 'tous']);
             $table->string('image')->nullable();
             $table->string('reference')->nullable();
             $table->boolean('actif')->default(true);

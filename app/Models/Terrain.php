@@ -21,20 +21,22 @@ class Terrain extends Model
         'heure_fermeture',
         'nbheures_seance',
         'nbminute_seance',
+        'categorie_ressource_id',
     ];
 
     protected $casts = [
         'price_per_hour' => 'decimal:2',
-        'is_active'      => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     protected $appends = ['image_url'];
 
     public function getImageUrlAttribute(): ?string
     {
-        if ($this->image_t && !str_starts_with($this->image_t, 'http')) {
+        if ($this->image_t && ! str_starts_with($this->image_t, 'http')) {
             return url($this->image_t);
         }
+
         return $this->image_t;
     }
 
@@ -46,5 +48,10 @@ class Terrain extends Model
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class, 'terrain_id');
+    }
+
+    public function categorieRessource(): BelongsTo
+    {
+        return $this->belongsTo(CategorieRessource::class, 'categorie_ressource_id');
     }
 }

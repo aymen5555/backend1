@@ -15,6 +15,7 @@ class Fournisseur extends Model
         'email',
         'adresse',
         'actif',
+        'categorie_fournisseur_id',
     ];
 
     protected $casts = [
@@ -24,5 +25,10 @@ class Fournisseur extends Model
     public function complexe(): BelongsTo
     {
         return $this->belongsTo(Complexe::class, 'complexe_id');
+    }
+
+    public function categorieFournisseur(): BelongsTo
+    {
+        return $this->belongsTo(CategorieFournisseur::class, 'categorie_fournisseur_id');
     }
 }

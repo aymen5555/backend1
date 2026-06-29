@@ -19,7 +19,7 @@ class RecommandationActivite extends Model
 
     protected $casts = [
         'score' => 'integer',
-        'rang'  => 'integer',
+        'rang' => 'integer',
     ];
 
     public function user(): BelongsTo

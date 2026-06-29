@@ -31,7 +31,7 @@ class RecommandationController extends Controller
             }
 
             $complexe = Complexe::with('terrains')->withCount('terrains')->find($recommendation['complexe']['id']);
-            if (!$complexe) {
+            if (! $complexe) {
                 continue;
             }
 
@@ -53,8 +53,8 @@ class RecommandationController extends Controller
         unset($recommendation);
 
         return response()->json([
-            'success'         => true,
-            'has_profile'     => $result['has_profile'],
+            'success' => true,
+            'has_profile' => $result['has_profile'],
             'recommendations' => $result['recommendations'],
         ]);
     }
@@ -68,8 +68,8 @@ class RecommandationController extends Controller
         $result = $this->recommandationSvc->generateProduits($user);
 
         return response()->json([
-            'success'         => true,
-            'has_profile'     => $result['has_profile'],
+            'success' => true,
+            'has_profile' => $result['has_profile'],
             'recommendations' => $result['recommendations'],
         ]);
     }
@@ -83,8 +83,8 @@ class RecommandationController extends Controller
         $result = $this->recommandationSvc->generateActivites($user);
 
         return response()->json([
-            'success'         => true,
-            'has_profile'     => $result['has_profile'],
+            'success' => true,
+            'has_profile' => $result['has_profile'],
             'recommendations' => $result['recommendations'],
         ]);
     }

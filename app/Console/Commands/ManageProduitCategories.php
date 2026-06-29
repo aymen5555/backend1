@@ -2,13 +2,14 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\Produit;
 use App\Models\CategorieProduit;
+use App\Models\Produit;
+use Illuminate\Console\Command;
 
 class ManageProduitCategories extends Command
 {
     protected $signature = 'produits:manage-categories {--assign=}';
+
     protected $description = 'List products missing categories, optionally assign a given category id to them.';
 
     public function handle(): int
@@ -19,6 +20,7 @@ class ManageProduitCategories extends Command
 
         if ($products->isEmpty()) {
             $this->info('No produits found without a categorie_id.');
+
             return 0;
         }
 
@@ -29,8 +31,9 @@ class ManageProduitCategories extends Command
 
         if ($assign) {
             $cat = CategorieProduit::find($assign);
-            if (!$cat) {
+            if (! $cat) {
                 $this->error("Category with id {$assign} not found.");
+
                 return 2;
             }
 

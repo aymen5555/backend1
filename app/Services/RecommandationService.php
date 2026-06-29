@@ -2,15 +2,14 @@
 
 namespace App\Services;
 
-use App\Models\Complexe;
-use App\Models\ProfilFitness;
-use App\Models\RecommandationComplexe;
-use App\Models\User;
-use App\Models\Produit;
 use App\Models\Activite;
-use App\Models\RecommandationProduit;
+use App\Models\Complexe;
+use App\Models\Produit;
+use App\Models\ProfilFitness;
 use App\Models\RecommandationActivite;
-use Illuminate\Support\Collection;
+use App\Models\RecommandationComplexe;
+use App\Models\RecommandationProduit;
+use App\Models\User;
 
 class RecommandationService
 {
@@ -23,7 +22,7 @@ class RecommandationService
     {
         $profil = ProfilFitness::where('user_id', $user->id)->first();
 
-        if (!$profil) {
+        if (! $profil) {
             // No profile: return top 3 by rating
             $topByRating = Complexe::where('is_active', true)
                 ->orderByDesc('moyenne_notation_c')
@@ -32,15 +31,15 @@ class RecommandationService
 
             $recommendations = $topByRating->values()->map(function (Complexe $c, int $index) {
                 return [
-                    'rang'        => $index + 1,
-                    'score'       => 0,
-                    'complexe'    => $c->load('terrains'),
+                    'rang' => $index + 1,
+                    'score' => 0,
+                    'complexe' => $c->load('terrains'),
                     'explication' => 'Complétez votre profil fitness pour des recommandations personnalisées.',
                 ];
             });
 
             return [
-                'has_profile'    => false,
+                'has_profile' => false,
                 'recommendations' => $recommendations->toArray(),
             ];
         }
@@ -60,8 +59,8 @@ class RecommandationService
                 continue;
             }
 
-            $score      = 0;
-            $reasons    = [];
+            $score = 0;
+            $reasons = [];
 
             // ── 40 pts: Sport match ──
             $sportMatch = $terrains->first(function ($t) use ($profil) {
@@ -75,7 +74,7 @@ class RecommandationService
             // ── 20 pts: Rating match (moyenne_notation_c > 4.0) ──
             if (($complexe->moyenne_notation_c ?? 0) > 4.0) {
                 $score += 20;
-                $reasons[] = 'avec une note de ' . number_format($complexe->moyenne_notation_c, 1) . '/5';
+                $reasons[] = 'avec une note de '.number_format($complexe->moyenne_notation_c, 1).'/5';
             }
 
             // ── 20 pts: Budget match ──
@@ -100,8 +99,8 @@ class RecommandationService
             }
 
             $scored->push([
-                'complexe'    => $complexe,
-                'score'       => $score,
+                'complexe' => $complexe,
+                'score' => $score,
                 'explication' => $this->buildExplication($reasons, $complexe),
             ]);
         }
@@ -116,10 +115,10 @@ class RecommandationService
         $saved = [];
         foreach ($top3 as $rang => $item) {
             $rec = RecommandationComplexe::create([
-                'user_id'     => $user->id,
+                'user_id' => $user->id,
                 'complexe_id' => $item['complexe']->id,
-                'score'       => $item['score'],
-                'rang'        => $rang + 1,
+                'score' => $item['score'],
+                'rang' => $rang + 1,
                 'explication' => $item['explication'],
             ]);
             $rec->setRelation('complexe', $item['complexe']);
@@ -127,12 +126,12 @@ class RecommandationService
         }
 
         return [
-            'has_profile'    => true,
+            'has_profile' => true,
             'recommendations' => collect($saved)->map(function ($r) {
                 return [
-                    'rang'        => $r->rang,
-                    'score'       => $r->score,
-                    'complexe'    => $r->complexe,
+                    'rang' => $r->rang,
+                    'score' => $r->score,
+                    'complexe' => $r->complexe,
                     'explication' => $r->explication,
                 ];
             })->toArray(),
@@ -146,22 +145,22 @@ class RecommandationService
     {
         $profil = ProfilFitness::where('user_id', $user->id)->first();
 
-        if (!$profil) {
+        if (! $profil) {
             $topProducts = Produit::where('actif', true)
                 ->take(3)
                 ->get();
 
             $recommendations = $topProducts->values()->map(function (Produit $p, int $index) {
                 return [
-                    'rang'        => $index + 1,
-                    'score'       => 0,
-                    'produit'     => $p,
+                    'rang' => $index + 1,
+                    'score' => 0,
+                    'produit' => $p,
                     'explication' => 'Complétez votre profil fitness pour des recommandations personnalisées.',
                 ];
             });
 
             return [
-                'has_profile'    => false,
+                'has_profile' => false,
                 'recommendations' => $recommendations->toArray(),
             ];
         }
@@ -172,7 +171,7 @@ class RecommandationService
         $scored = collect();
 
         foreach ($produits as $produit) {
-            $score   = 0;
+            $score = 0;
             $reasons = [];
 
             if ($produit->sport_cible && strtolower(trim($produit->sport_cible)) === strtolower(trim($profil->sport_prefere))) {
@@ -195,8 +194,8 @@ class RecommandationService
             }
 
             $scored->push([
-                'produit'     => $produit,
-                'score'       => $score,
+                'produit' => $produit,
+                'score' => $score,
                 'explication' => $this->buildExplication($reasons, $produit),
             ]);
         }
@@ -206,23 +205,23 @@ class RecommandationService
         $saved = [];
         foreach ($top3 as $rang => $item) {
             $rec = RecommandationProduit::create([
-                'user_id'    => $user->id,
+                'user_id' => $user->id,
                 'produit_id' => $item['produit']->id,
-                'score'      => $item['score'],
-                'rang'       => $rang + 1,
-                'explication'=> $item['explication'],
+                'score' => $item['score'],
+                'rang' => $rang + 1,
+                'explication' => $item['explication'],
             ]);
             $rec->setRelation('produit', $item['produit']);
             $saved[] = $rec;
         }
 
         return [
-            'has_profile'    => true,
+            'has_profile' => true,
             'recommendations' => collect($saved)->map(function ($r) {
                 return [
-                    'rang'        => $r->rang,
-                    'score'       => $r->score,
-                    'produit'     => $r->produit,
+                    'rang' => $r->rang,
+                    'score' => $r->score,
+                    'produit' => $r->produit,
                     'explication' => $r->explication,
                 ];
             })->toArray(),
@@ -236,22 +235,22 @@ class RecommandationService
     {
         $profil = ProfilFitness::where('user_id', $user->id)->first();
 
-        if (!$profil) {
+        if (! $profil) {
             $topActivities = Activite::where('active', true)
                 ->take(3)
                 ->get();
 
             $recommendations = $topActivities->values()->map(function (Activite $a, int $index) {
                 return [
-                    'rang'        => $index + 1,
-                    'score'       => 0,
-                    'activite'    => $a->load('complexe'),
+                    'rang' => $index + 1,
+                    'score' => 0,
+                    'activite' => $a->load('complexe'),
                     'explication' => 'Complétez votre profil fitness pour des recommandations personnalisées.',
                 ];
             });
 
             return [
-                'has_profile'    => false,
+                'has_profile' => false,
                 'recommendations' => $recommendations->toArray(),
             ];
         }
@@ -262,7 +261,7 @@ class RecommandationService
         $scored = collect();
 
         foreach ($activities as $activity) {
-            $score   = 0;
+            $score = 0;
             $reasons = [];
 
             if ($activity->sport && strtolower(trim($activity->sport)) === strtolower(trim($profil->sport_prefere))) {
@@ -279,15 +278,15 @@ class RecommandationService
                 $budgetParSeance = $profil->budget_mensuel_max / 4;
                 if ($activity->prix <= $budgetParSeance) {
                     $score += 30;
-                    $reasons[] = "avec un tarif adapté";
+                    $reasons[] = 'avec un tarif adapté';
                 }
             } else {
                 $score += 30;
             }
 
             $scored->push([
-                'activite'    => $activity,
-                'score'       => $score,
+                'activite' => $activity,
+                'score' => $score,
                 'explication' => $this->buildExplication($reasons, $activity),
             ]);
         }
@@ -297,10 +296,10 @@ class RecommandationService
         $saved = [];
         foreach ($top3 as $rang => $item) {
             $rec = RecommandationActivite::create([
-                'user_id'     => $user->id,
+                'user_id' => $user->id,
                 'activite_id' => $item['activite']->id,
-                'score'       => $item['score'],
-                'rang'        => $rang + 1,
+                'score' => $item['score'],
+                'rang' => $rang + 1,
                 'explication' => $item['explication'],
             ]);
             $rec->setRelation('activite', $item['activite']);
@@ -308,12 +307,12 @@ class RecommandationService
         }
 
         return [
-            'has_profile'    => true,
+            'has_profile' => true,
             'recommendations' => collect($saved)->map(function ($r) {
                 return [
-                    'rang'        => $r->rang,
-                    'score'       => $r->score,
-                    'activite'    => $r->activite,
+                    'rang' => $r->rang,
+                    'score' => $r->score,
+                    'activite' => $r->activite,
                     'explication' => $r->explication,
                 ];
             })->toArray(),
@@ -327,9 +326,10 @@ class RecommandationService
     {
         if (empty($reasons)) {
             $name = $item->name ?? $item->nom ?? 'Cet élément';
+
             return "{$name} est recommandé pour vous.";
         }
 
-        return implode(', ', $reasons) . '.';
+        return implode(', ', $reasons).'.';
     }
 }

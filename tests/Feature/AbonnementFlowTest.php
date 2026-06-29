@@ -2,9 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\Abonnement;
+use App\Models\AbonnementAdherent;
 use App\Models\Complexe;
-use App\Models\Terrain;
+use App\Models\TypeAbonnementAdherent;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,8 +15,41 @@ class AbonnementFlowTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function setupData()
+    {
+        $admin = User::create([
+            'first_name' => 'Super',
+            'last_name' => 'Admin',
+            'email' => 'admin-abon@example.test',
+            'password' => bcrypt('secret'),
+            'role' => 'super_admin',
+        ]);
+
+        $complexe = Complexe::create([
+            'owner_id' => $admin->id,
+            'name' => 'Abon Complexe',
+            'address' => 'Addr',
+        ]);
+
+        $type = TypeAbonnementAdherent::create([
+            'complexe_id' => $complexe->id,
+            'nom' => 'Test Formula',
+            'description' => 'A description',
+            'nb_mois' => 1,
+            'tarif' => 120.0,
+            'prix_unitaire' => 120.0,
+            'niveau_sportif_cible' => 'tous',
+            'sport_cible' => 'padel',
+            'active' => true,
+        ]);
+
+        return [$admin, $complexe, $type];
+    }
+
     public function test_client_can_create_cash_subscription_and_remains_client()
     {
+        list($admin, $complexe, $type) = $this->setupData();
+
         $client = User::create([
             'first_name' => 'Client',
             'last_name' => 'Subscriber',
@@ -26,28 +59,32 @@ class AbonnementFlowTest extends TestCase
         ]);
 
         $token = JWTAuth::fromUser($client);
-        JWTAuth::setToken($token);
-        $this->actingAs($client, 'api');
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/abonnements', [
-                'type' => 'MONTHLY',
-                'payment_method' => 'especes',
-                'price' => 49,
+            ->postJson('/api/abonnements/souscrire', [
+                'type_abonnement_id' => $type->id,
+                'modalite_paiement' => 'especes',
+                'date_debut' => now()->toDateString(),
             ]);
 
         $response->assertStatus(201)
             ->assertJson(['success' => true])
-            ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.payment_status', 'paid');
+            ->assertJsonPath('data.statut', 'actif')
+            ->assertJsonPath('data.paye', false);
 
         $client->refresh();
         $this->assertSame('client', $client->role);
-        $this->assertDatabaseHas('abonnements', ['user_id' => $client->id, 'status' => 'active', 'payment_status' => 'paid']);
+        $this->assertDatabaseHas('abonnements_adherent', [
+            'user_id' => $client->id,
+            'statut' => 'actif',
+            'paye' => false,
+        ]);
     }
 
     public function test_client_can_create_card_subscription_and_confirm_payment()
     {
+        list($admin, $complexe, $type) = $this->setupData();
+
         $client = User::create([
             'first_name' => 'Client',
             'last_name' => 'Card',
@@ -57,42 +94,50 @@ class AbonnementFlowTest extends TestCase
         ]);
 
         $token = JWTAuth::fromUser($client);
-        JWTAuth::setToken($token);
-        $this->actingAs($client, 'api');
 
         $create = $this->withHeader('Authorization', "Bearer {$token}")
-            ->postJson('/api/abonnements', [
-                'type' => 'YEARLY',
-                'payment_method' => 'carte',
-                'price' => 499,
+            ->postJson('/api/abonnements/souscrire', [
+                'type_abonnement_id' => $type->id,
+                'modalite_paiement' => 'carte',
+                'date_debut' => now()->toDateString(),
             ]);
 
         $create->assertStatus(201)
             ->assertJson(['success' => true])
-            ->assertJsonPath('data.status', 'pending')
-            ->assertJsonPath('data.payment_status', 'pending');
+            ->assertJsonPath('data.statut', 'actif');
 
         $subscriptionId = $create->json('data.id');
         $this->assertNotNull($subscriptionId);
 
         $confirm = $this->withHeader('Authorization', "Bearer {$token}")
-            ->putJson("/api/abonnements/{$subscriptionId}/confirm-payment", [
-                'reference' => 'CARD-REF-123',
+            ->putJson("/api/abonnement-adherents/{$subscriptionId}/pay", [
+                'modalite_paiement' => 'carte',
+                'reference' => 'TXN-1234-567',
             ]);
 
         $confirm->assertStatus(200)
             ->assertJson(['success' => true])
-            ->assertJsonPath('data.status', 'active')
-            ->assertJsonPath('data.payment_status', 'paid')
-            ->assertJsonPath('data.reference', 'CARD-REF-123');
+            ->assertJsonPath('data.statut', 'actif')
+            ->assertJsonPath('data.paye', true);
 
         $client->refresh();
         $this->assertSame('client', $client->role);
-        $this->assertDatabaseHas('abonnements', ['id' => $subscriptionId, 'status' => 'active', 'payment_status' => 'paid']);
+        $this->assertDatabaseHas('abonnements_adherent', [
+            'id' => $subscriptionId,
+            'statut' => 'actif',
+            'paye' => true,
+        ]);
+        $this->assertDatabaseHas('reglements_abonnement', [
+            'abonnement_id' => $subscriptionId,
+            'modalite' => 'carte',
+            'reference' => 'TXN-1234-567',
+        ]);
     }
 
     public function test_client_with_active_subscription_can_cancel_and_remains_client()
     {
+        list($admin, $complexe, $type) = $this->setupData();
+
         $client = User::create([
             'first_name' => 'Client',
             'last_name' => 'Cancel',
@@ -101,32 +146,33 @@ class AbonnementFlowTest extends TestCase
             'role' => 'client',
         ]);
 
-        $abonnement = Abonnement::create([
+        $abonnement = AbonnementAdherent::create([
             'user_id' => $client->id,
-            'type' => 'MONTHLY',
-            'status' => 'active',
-            'payment_method' => 'especes',
-            'payment_status' => 'paid',
-            'price' => 49,
-            'start_at' => Carbon::now()->subDays(1),
-            'expires_at' => Carbon::now()->addDays(29),
-            'reference' => null,
+            'complexe_id' => $complexe->id,
+            'type_abonnement_id' => $type->id,
+            'date_debut' => now()->toDateString(),
+            'date_fin' => now()->addMonth()->toDateString(),
+            'montant_vente' => 120.0,
+            'remise' => 0,
+            'montant_apres_remise' => 120.0,
+            'statut' => 'actif',
+            'paye' => true,
+            'reste_a_payer' => 0.0,
         ]);
 
         $token = JWTAuth::fromUser($client);
-        JWTAuth::setToken($token);
-        $this->actingAs($client, 'api');
 
         $cancel = $this->withHeader('Authorization', "Bearer {$token}")
-            ->putJson("/api/abonnements/{$abonnement->id}/cancel", []);
+            ->putJson("/api/abonnement-adherents/{$abonnement->id}/cancel", []);
 
         $cancel->assertStatus(200)
-            ->assertJson(['success' => true])
-            ->assertJsonPath('data.status', 'cancelled')
-            ->assertJsonPath('data.payment_status', 'refunded');
+            ->assertJson(['success' => true, 'message' => 'Abonnement annulé.']);
 
         $client->refresh();
         $this->assertSame('client', $client->role);
-        $this->assertDatabaseHas('abonnements', ['id' => $abonnement->id, 'status' => 'cancelled']);
+        $this->assertDatabaseHas('abonnements_adherent', [
+            'id' => $abonnement->id,
+            'statut' => 'annule',
+        ]);
     }
 }

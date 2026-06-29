@@ -6,7 +6,9 @@ use App\Models\ReglementReservation;
 use App\Models\Reservation;
 use App\Models\Terrain;
 use App\Models\User;
+use App\Services\PricingService;
 use App\Services\ReservationConflictService;
+use App\Services\ReservationLockService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,13 +17,15 @@ use Illuminate\Support\Facades\Validator;
 class AdminReservationController extends Controller
 {
     public function __construct(
-        private readonly ReservationConflictService $conflicts
+        private readonly ReservationConflictService $conflicts,
+        private readonly ReservationLockService $locks,
+        private readonly PricingService $pricing
     ) {}
 
     public function manualStore(Request $request): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user || !$user->isGerantOrAdmin()) {
+        if (! $user || ! $user->isGerantOrAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only GERANT or SUPER_ADMIN can perform this action.',
@@ -29,20 +33,20 @@ class AdminReservationController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'terrain_id'        => 'required|exists:terrains,id',
-            'date_seance_res'   => 'required|date_format:Y-m-d',
-            'heure_debut_res'   => 'required|date_format:H:i',
-            'heure_fin_res'     => 'required|date_format:H:i|after:heure_debut_res',
-            'client_id'         => 'nullable|exists:users,id',
+            'terrain_id' => 'required|exists:terrains,id',
+            'date_seance_res' => 'required|date_format:Y-m-d',
+            'heure_debut_res' => 'required|date_format:H:i',
+            'heure_fin_res' => 'required|date_format:H:i|after:heure_debut_res',
+            'client_id' => 'required|exists:users,id',
             'modalite_paiement' => 'required|in:carte,especes',
-            'notes'             => 'nullable|string|max:1000',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -50,27 +54,24 @@ class AdminReservationController extends Controller
         $terrain = Terrain::with('complexe')->findOrFail($request->terrain_id);
         $complexe = $terrain->complexe;
 
-        if (!$user->isAdmin() && $complexe->owner_id !== $user->id) {
+        if (! $user->isAdmin() && $complexe->owner_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. This court is not in your complex.',
             ], 403);
         }
 
-        $clientId = $request->input('client_id') ?: $user->id;
-        $client = User::find($clientId);
-        if (!$client || ($client->isClient() === false && $clientId !== $user->id && !$client->hasVerifiedEmail())) {
-            // Allow any client
-        }
+        $clientId = $request->client_id;
+        $client = User::findOrFail($clientId);
 
         $startAt = Carbon::createFromFormat('Y-m-d H:i', "{$request->date_seance_res} {$request->heure_debut_res}");
-        $endAt   = Carbon::createFromFormat('Y-m-d H:i', "{$request->date_seance_res} {$request->heure_fin_res}");
+        $endAt = Carbon::createFromFormat('Y-m-d H:i', "{$request->date_seance_res} {$request->heure_fin_res}");
 
         if ($endAt->lte($startAt)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => ['heure_fin_res' => ['L\'heure de fin doit être après l\'heure de début.']],
+                'errors' => ['heure_fin_res' => ['L\'heure de fin doit être après l\'heure de début.']],
             ], 422);
         }
 
@@ -81,44 +82,57 @@ class AdminReservationController extends Controller
             ], 422);
         }
 
-        if (!$terrain->is_active || !$complexe->is_active) {
+        if (! $terrain->is_active || ! $complexe->is_active) {
             return response()->json([
                 'success' => false,
                 'message' => 'This court is not available for booking.',
             ], 422);
         }
 
-        if ($this->conflicts->hasConflict($terrain->id, $startAt, $endAt)) {
+        $prixBase = $terrain->price_per_hour ?? 0;
+        // CRITICAL: use $client (the booking client) NOT auth()->user() (the admin)
+        $prix = $this->pricing->calculate($prixBase, $startAt, $endAt, $client, $complexe->id);
+
+        $reservation = $this->locks->executeWithTerrainLock($terrain->id, function () use ($terrain, $startAt, $endAt, $request, $clientId, $prix) {
+            if ($this->conflicts->hasConflict($terrain->id, $startAt, $endAt)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This time slot is already booked.',
+                ], 409);
+            }
+
+            return Reservation::create([
+                'user_id' => $clientId,
+                'terrain_id' => $terrain->id,
+                'start_at' => $startAt,
+                'end_at' => $endAt,
+                'status' => 'pending',
+                'type' => 'manual',
+                'modalite_paiement' => $request->modalite_paiement,
+                'statut_paiement' => 'non_paye',
+                'montant_paye' => $prix,
+                'notes' => $request->notes,
+            ]);
+        });
+
+        if ($reservation === null) {
             return response()->json([
                 'success' => false,
-                'message' => 'This time slot is already booked.',
-            ], 409);
+                'message' => 'Unable to acquire reservation lock. Please retry.',
+            ], 503);
         }
-
-        $reservation = Reservation::create([
-            'user_id'           => $clientId,
-            'terrain_id'        => $terrain->id,
-            'start_at'          => $startAt,
-            'end_at'            => $endAt,
-            'status'            => 'pending',
-            'type'              => 'manual',
-            'modalite_paiement' => $request->modalite_paiement,
-            'statut_paiement'   => 'non_paye',
-            'montant_paye'      => 0,
-            'notes'             => $request->notes,
-        ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Manual reservation created successfully.',
-            'data'    => $reservation->load(['terrain.complexe', 'user:id,first_name,last_name,email,phone']),
+            'data' => $reservation->load(['terrain.complexe', 'user:id,first_name,last_name,email,phone']),
         ], 201);
     }
 
     public function confirmCash(Reservation $reservation): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user || !$user->isGerantOrAdmin()) {
+        if (! $user || ! $user->isGerantOrAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only GERANT or SUPER_ADMIN can perform this action.',
@@ -127,7 +141,7 @@ class AdminReservationController extends Controller
 
         // Check reservation is in user's complex
         $terrain = Terrain::with('complexe')->findOrFail($reservation->terrain_id);
-        if (!$user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
+        if (! $user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. This reservation is not in your complex.',
@@ -148,39 +162,40 @@ class AdminReservationController extends Controller
             ], 422);
         }
 
-        $client = $reservation->user;
+        $client = User::find($reservation->user_id); // CRITICAL: use the booking client, not auth() admin
         $complexeId = $terrain->complexe_id;
-        $prixBase = $terrain->price_per_hour ?? 0;
-        // Calculate price based on actual duration in hours
-        $startAt = Carbon::parse($reservation->start_at);
-        $endAt = Carbon::parse($reservation->end_at);
-        $hours = max(1, round($startAt->diffInMinutes($endAt) / 60, 2));
-        $montant = $client->isAdherentAt($complexeId) ? round($prixBase * $hours * 0.80, 2) : round($prixBase * $hours, 2);
+        $montant = $this->pricing->calculate(
+            $terrain->price_per_hour ?? 0,
+            Carbon::parse($reservation->start_at),
+            Carbon::parse($reservation->end_at),
+            $client,
+            $complexeId
+        );
 
         $reservation->update([
-            'status'          => 'confirmed',
+            'status' => 'confirmed',
             'statut_paiement' => 'paye',
-            'montant_paye'    => $montant,
+            'montant_paye' => $montant,
         ]);
 
         ReglementReservation::create([
             'reservation_id' => $reservation->id,
-            'type'           => 'paiement',
-            'montant'        => $montant,
-            'reference'      => 'cash_confirmed_by_admin',
+            'type' => 'paiement',
+            'montant' => $montant,
+            'reference' => 'cash_confirmed_by_admin',
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Payment marked as paid successfully.',
-            'data'    => $reservation->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']),
+            'data' => $reservation->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']),
         ]);
     }
 
     public function adminUpdate(Request $request, Reservation $reservation): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user || !$user->isGerantOrAdmin()) {
+        if (! $user || ! $user->isGerantOrAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only GERANT or SUPER_ADMIN can perform this action.',
@@ -189,7 +204,7 @@ class AdminReservationController extends Controller
 
         // Check if user owns the complex this reservation is for
         $terrain = Terrain::with('complexe')->findOrFail($reservation->terrain_id);
-        if (!$user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
+        if (! $user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. This reservation is not in your complex.',
@@ -197,15 +212,15 @@ class AdminReservationController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'status'   => 'sometimes|in:pending,confirmed,cancelled,expired,played',
-            'notes'    => 'nullable|string|max:1000',
+            'status' => 'sometimes|in:pending,confirmed,cancelled,expired,played',
+            'notes' => 'nullable|string|max:1000',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -215,14 +230,14 @@ class AdminReservationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Reservation updated successfully.',
-            'data'    => $reservation->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email,phone', 'reglements']),
+            'data' => $reservation->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email,phone', 'reglements']),
         ]);
     }
 
     public function confirmCardPayment(Request $request, Reservation $reservation): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user || !$user->isGerantOrAdmin()) {
+        if (! $user || ! $user->isGerantOrAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only GERANT or SUPER_ADMIN can perform this action.',
@@ -231,7 +246,7 @@ class AdminReservationController extends Controller
 
         // Check reservation belongs to user's complex
         $terrain = Terrain::with('complexe')->findOrFail($reservation->terrain_id);
-        if (!$user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
+        if (! $user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. This reservation is not in your complex.',
@@ -239,15 +254,15 @@ class AdminReservationController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'reference' => ['required', 'string', 'max:30', 'regex:/^TXN-\d{4}-\d{3,8}$/i'],
-            'montant'   => 'required|numeric|min:0',
+            'reference' => ['nullable', 'string', 'max:30', 'regex:/^TXN-\d{4}-\d{3,8}$/i'],
+            'montant' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -265,33 +280,33 @@ class AdminReservationController extends Controller
             ], 422);
         }
 
-        $montant = $request->input('montant');
-        $reference = $request->input('reference');
+        $montant = $request->input('montant') ?? $reservation->montant_paye ?? $reservation->tarif_calcule ?? 0;
+        $reference = $request->input('reference') ?? ('TXN-' . now()->format('Y') . '-' . rand(10000, 99999));
 
         $reservation->update([
-            'status'          => 'confirmed',
+            'status' => 'confirmed',
             'statut_paiement' => 'paye',
-            'montant_paye'    => $montant,
+            'montant_paye' => $montant,
         ]);
 
         ReglementReservation::create([
             'reservation_id' => $reservation->id,
-            'type'           => 'paiement',
-            'montant'        => $montant,
-            'reference'      => $reference,
+            'type' => 'paiement',
+            'montant' => $montant,
+            'reference' => $reference,
         ]);
 
         return response()->json([
             'success' => true,
             'message' => 'Payment recorded successfully.',
-            'data'    => $reservation->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']),
+            'data' => $reservation->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']),
         ]);
     }
 
     public function adminDestroy(Reservation $reservation): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user || !$user->isGerantOrAdmin()) {
+        if (! $user || ! $user->isGerantOrAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. Only GERANT or SUPER_ADMIN can perform this action.',
@@ -300,25 +315,34 @@ class AdminReservationController extends Controller
 
         // Check if user owns the complex this reservation is for
         $terrain = Terrain::with('complexe')->findOrFail($reservation->terrain_id);
-        if (!$user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
+        if (! $user->isAdmin() && $terrain->complexe->owner_id !== $user->id) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. This reservation is not in your complex.',
             ], 403);
         }
 
-        if (!in_array($reservation->status, ['cancelled', 'expired', 'played'], true)) {
+        if (! in_array($reservation->status, ['cancelled', 'expired', 'played'], true)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Only cancelled, expired, or completed reservations can be deleted.',
+                'message' => 'Only cancelled, expired, or completed reservations can be archived.',
             ], 422);
         }
 
-        $reservation->delete();
+        $hasPayment = in_array($reservation->statut_paiement, ['paye', 'rembourse']) 
+            || $reservation->reglements()->count() > 0;
+
+        if ($hasPayment) {
+            $reservation->delete();
+            $message = 'Réservation archivée (supprimée de l\'affichage).';
+        } else {
+            $reservation->forceDelete();
+            $message = 'Réservation supprimée définitivement.';
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Reservation deleted successfully.',
+            'message' => $message,
         ]);
     }
 }

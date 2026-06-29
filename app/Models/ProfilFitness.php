@@ -24,13 +24,13 @@ class ProfilFitness extends Model
     ];
 
     protected $casts = [
-        'taille'            => 'integer',
-        'poids'             => 'float',
-        'poids_cible'       => 'float',
+        'taille' => 'integer',
+        'poids' => 'float',
+        'poids_cible' => 'float',
         'budget_mensuel_min' => 'float',
         'budget_mensuel_max' => 'float',
-        'imc'               => 'float',
-        'verif_fitness'     => 'boolean',
+        'imc' => 'float',
+        'verif_fitness' => 'boolean',
     ];
 
     public function user(): BelongsTo
@@ -44,8 +44,11 @@ class ProfilFitness extends Model
      */
     public static function calculerImc(?int $taille, ?float $poids): ?float
     {
-        if (!$taille || !$poids || $taille <= 0) return null;
+        if (! $taille || ! $poids || $taille <= 0) {
+            return null;
+        }
         $tailleM = $taille / 100;
+
         return round($poids / ($tailleM * $tailleM), 1);
     }
 }

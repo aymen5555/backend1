@@ -7,7 +7,6 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ClientController extends Controller
 {
@@ -48,7 +47,7 @@ class ClientController extends Controller
             ? Complexe::where('owner_id', $user->id)->pluck('id')
             : Complexe::pluck('id');
 
-        if (!$user || !$user->isGerantOrAdmin()) {
+        if (! $user || ! $user->isGerantOrAdmin()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden.',
@@ -70,7 +69,7 @@ class ClientController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed.',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -80,7 +79,7 @@ class ClientController extends Controller
                 ->whereHas('terrain', fn ($c) => $c->whereIn('complexe_id', $myComplexeIds))
                 ->exists();
 
-            if (!$exists) {
+            if (! $exists) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden. This client does not belong to your complexes.',
@@ -99,22 +98,22 @@ class ClientController extends Controller
         return response()->json([
             'success' => true,
             'message' => $client->is_active ? 'Client activated.' : 'Client deactivated.',
-            'data'    => $this->formatClient($client),
+            'data' => $this->formatClient($client),
         ]);
     }
 
     private function formatClient(User $user): array
     {
         return [
-            'id'                         => $user->id,
-            'first_name'                 => $user->first_name,
-            'last_name'                  => $user->last_name,
-            'email'                      => $user->email,
-            'phone'                      => $user->phone,
-            'is_active'                  => $user->is_active,
-            'email_verified_at'          => $user->email_verified_at,
+            'id' => $user->id,
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+            'phone' => $user->phone,
+            'is_active' => $user->is_active,
+            'email_verified_at' => $user->email_verified_at,
             'bookings_on_my_courts_count' => $user->bookings_on_my_courts_count ?? 0,
-            'created_at'                 => $user->created_at,
+            'created_at' => $user->created_at,
         ];
     }
 }

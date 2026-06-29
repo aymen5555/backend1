@@ -8,14 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ReglementReservation extends Model
 {
     protected $fillable = [
-        "reservation_id",
-        "type",
-        "montant",
-        "reference",
+        'reservation_id',
+        'type',
+        'montant',
+        'reference',
     ];
 
     protected $casts = [
-        "montant" => "decimal:2",
+        'montant' => 'decimal:2',
     ];
 
     public function reservation(): BelongsTo
@@ -23,4 +23,3 @@ class ReglementReservation extends Model
         return $this->belongsTo(Reservation::class);
     }
 }
-

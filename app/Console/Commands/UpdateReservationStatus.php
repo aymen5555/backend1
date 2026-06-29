@@ -8,23 +8,46 @@ use Illuminate\Console\Command;
 
 class UpdateReservationStatus extends Command
 {
-    protected $signature = "reservations:update-status";
-    protected $description = "Update expired and played reservation statuses";
+    protected $signature = 'reservations:update-status';
+
+    protected $description = 'Update expired and played reservation statuses';
 
     public function handle(): int
     {
-        $now = Carbon::now("Africa/Tunis");
+        $now = Carbon::now('Africa/Tunis');
+
+        $expiredReservations = Reservation::where('status', 'pending')
+            ->where('start_at', '<', $now)
+            ->get();
         
-        $expired = Reservation::where("status", "pending")
-            ->where("start_at", "<", $now)
-            ->update(["status" => "expired"]);
-        
-        $played = Reservation::where("status", "confirmed")
-            ->where("start_at", "<", $now)
-            ->update(["status" => "played"]);
-        
-        $this->info("Updated {$expired} reservations to expired and {$played} to played.");
-        
+        $expiredCount = 0;
+        foreach ($expiredReservations as $reservation) {
+            $reservation->update(['status' => 'expired']);
+            $expiredCount++;
+            if ($reservation->user) {
+                $reservation->user->notify(
+                    new \App\Notifications\ReservationStatusChanged($reservation)
+                );
+            }
+        }
+
+        $playedReservations = Reservation::where('status', 'confirmed')
+            ->where('start_at', '<', $now)
+            ->get();
+
+        $playedCount = 0;
+        foreach ($playedReservations as $reservation) {
+            $reservation->update(['status' => 'played']);
+            $playedCount++;
+            if ($reservation->user) {
+                $reservation->user->notify(
+                    new \App\Notifications\ReservationStatusChanged($reservation)
+                );
+            }
+        }
+
+        $this->info("Updated {$expiredCount} reservations to expired and {$playedCount} to played.");
+
         return 0;
     }
 }

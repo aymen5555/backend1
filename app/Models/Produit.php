@@ -29,8 +29,6 @@ class Produit extends Model
 
     protected $appends = ['disponible', 'image_url', 'average_rating'];
 
-
-
     public static function generateSlug(string $name): string
     {
         $slug = mb_strtolower($name, 'UTF-8');
@@ -39,19 +37,21 @@ class Produit extends Model
             'ç' => 'c', 'è' => 'e', 'é' => 'e', 'ê' => 'e', 'ë' => 'e', 'ì' => 'i', 'í' => 'i',
             'î' => 'i', 'ï' => 'i', 'ñ' => 'n', 'ò' => 'o', 'ó' => 'o', 'ô' => 'o', 'õ' => 'o',
             'ö' => 'o', 'œ' => 'oe', 'ù' => 'u', 'ú' => 'u', 'û' => 'u', 'ü' => 'u', 'ý' => 'y',
-            'ÿ' => 'y', 'š' => 's', 'ž' => 'z', 'đ' => 'd'
+            'ÿ' => 'y', 'š' => 's', 'ž' => 'z', 'đ' => 'd',
         ];
         $slug = strtr($slug, $accents);
         $slug = preg_replace('/[^a-z0-9]+/i', '-', $slug);
         $slug = preg_replace('/-+/', '-', $slug);
+
         return trim($slug, '-');
     }
 
     public function getImageUrlAttribute(): ?string
     {
-        if ($this->image && !str_starts_with($this->image, 'http')) {
+        if ($this->image && ! str_starts_with($this->image, 'http')) {
             return url($this->image);
         }
+
         return $this->image;
     }
 
@@ -80,6 +80,16 @@ class Produit extends Model
         return $this->hasMany(VenteDirecte::class, 'produit_id');
     }
 
+    public function ligneBonEntrees(): HasMany
+    {
+        return $this->hasMany(LigneBonEntree::class, 'produit_id');
+    }
+
+    public function ligneBonSorties(): HasMany
+    {
+        return $this->hasMany(LigneBonSortie::class, 'produit_id');
+    }
+
     public function getDisponibleAttribute(): bool
     {
         return $this->stock && $this->stock->quantite_disponible > 0;
@@ -93,6 +103,7 @@ class Produit extends Model
     public function getAverageRatingAttribute(): ?float
     {
         $avg = $this->notations()->avg('note');
+
         return $avg !== null ? round((float) $avg, 1) : null;
     }
 }

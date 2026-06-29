@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\AbonnementAdherent;
+use App\Models\Complexe;
 use App\Models\ReglementAbonnement;
 use App\Models\TypeAbonnementAdherent;
-use App\Models\Complexe;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -75,17 +75,8 @@ class AbonnementAdherentController extends Controller
             'remise' => $remise,
             'montant_apres_remise' => $montantApres,
             'statut' => 'actif',
-            'paye' => $request->modalite_paiement === 'especes',
-            'reste_a_payer' => $request->modalite_paiement === 'especes' ? 0 : $montantApres,
-        ]);
-
-        ReglementAbonnement::create([
-            'abonnement_id' => $abonnement->id,
-            'montant' => $abonnement->paye ? $montantApres : 0,
-            'date_reglement' => Carbon::now()->toDateString(),
-            'modalite' => $request->modalite_paiement,
-            'reference' => $request->reference ?? null,
-            'encaisse' => $abonnement->paye,
+            'paye' => false,
+            'reste_a_payer' => $montantApres,
         ]);
 
         return response()->json(['success' => true, 'message' => 'Abonnement créé.', 'data' => $abonnement->load(['typeAbonnement', 'complexe', 'reglements', 'user'])], 201);
@@ -107,7 +98,7 @@ class AbonnementAdherentController extends Controller
         $user = auth('api')->user();
         $sub = AbonnementAdherent::with(['typeAbonnement', 'complexe', 'reglements', 'user'])->findOrFail($id);
 
-        if ($sub->user_id !== $user->id && !$user->isGerant() && !$user->isAdmin()) {
+        if ($sub->user_id !== $user->id && ! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -137,6 +128,7 @@ class AbonnementAdherentController extends Controller
         }
 
         $sub->update(['statut' => 'annule']);
+
         return response()->json(['success' => true, 'message' => 'Abonnement annulé.']);
     }
 
@@ -178,6 +170,7 @@ class AbonnementAdherentController extends Controller
 
         $sub->update([
             'paye' => true,
+            'statut' => 'actif',
             'reste_a_payer' => 0,
         ]);
 
@@ -197,37 +190,40 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Impossible de supprimer un abonnement actif.'], 422);
         }
 
-        $sub->delete();
-        return response()->json(['success' => true, 'message' => 'Abonnement supprimé.']);
+        $sub->update(['statut' => 'annule']);
+
+        return response()->json(['success' => true, 'message' => 'Abonnement conservé et marqué comme annulé.']);
     }
 
     public function adminTypes(): JsonResponse
     {
         try {
             $user = auth('api')->user();
-            if (!$user) {
+            if (! $user) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 401);
             }
-            if (!$user->isGerant() && !$user->isAdmin()) {
+            if (! $user->isGerant() && ! $user->isAdmin()) {
                 return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
             }
 
             $query = TypeAbonnementAdherent::query();
             if ($user->isGerant()) {
-                $query->whereHas('complexe', fn($q) => $q->where('owner_id', $user->id));
+                $query->whereHas('complexe', fn ($q) => $q->where('owner_id', $user->id));
             }
 
             $types = $query->with('complexe')->get();
+
             return response()->json(['success' => true, 'data' => $types, 'count' => $types->count()]);
         } catch (\Exception $e) {
-            \Log::error('Error in adminTypes: ' . $e->getMessage(), [
+            \Log::error('Error in adminTypes: '.$e->getMessage(), [
                 'exception' => $e,
                 'user_id' => auth('api')->id() ?? 'unknown',
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error loading subscription types',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -235,7 +231,7 @@ class AbonnementAdherentController extends Controller
     public function adminStoreType(Request $request): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user->isGerant() && !$user->isAdmin()) {
+        if (! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -279,7 +275,7 @@ class AbonnementAdherentController extends Controller
     public function adminUpdateType(Request $request, $id): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user->isGerant() && !$user->isAdmin()) {
+        if (! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -309,7 +305,7 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
         }
 
-        $data = $request->only(['nom','description','nb_mois','tarif','prix_unitaire','niveau_sportif_cible','sport_cible','avantages','active']);
+        $data = $request->only(['nom', 'description', 'nb_mois', 'tarif', 'prix_unitaire', 'niveau_sportif_cible', 'sport_cible', 'avantages', 'active']);
 
         if ($request->has('complexe_id')) {
             $complexe = Complexe::findOrFail($request->complexe_id);
@@ -320,13 +316,14 @@ class AbonnementAdherentController extends Controller
         }
 
         $type->update($data);
+
         return response()->json(['success' => true, 'data' => $type->fresh(['complexe'])]);
     }
 
     public function adminDeleteType($id): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user->isGerant() && !$user->isAdmin()) {
+        if (! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -335,38 +332,48 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        // Soft-delete: just deactivate to preserve existing subscriptions referencing this type
-        $type->update(['active' => false]);
-        return response()->json(['success' => true, 'message' => 'Type d\'abonnement désactivé.']);
+        // Real delete only if there are no dependencies
+        if ($type->abonnements()->exists() || $type->detailsAbonnements()->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de supprimer cette formule car des adhérents y sont abonnés ou elle possède des détails d\'abonnement liés. Désactivez-la à la place.',
+            ], 422);
+        }
+
+        $type->delete();
+
+        return response()->json(['success' => true, 'message' => 'Formule d\'abonnement supprimée.']);
     }
 
     public function adminAbonnements(): JsonResponse
     {
         try {
             $user = auth('api')->user();
-            if (!$user) {
+            if (! $user) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 401);
             }
-            if (!$user->isGerant() && !$user->isAdmin()) {
+            if (! $user->isGerant() && ! $user->isAdmin()) {
                 return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
             }
 
-            $query = AbonnementAdherent::with(['user','typeAbonnement.complexe','complexe','reglements']);
+            $query = AbonnementAdherent::with(['user', 'typeAbonnement.complexe', 'complexe', 'reglements']);
             if ($user->isGerant()) {
-                $query->whereHas('complexe', fn($q) => $q->where('owner_id', $user->id));
+                $query->whereHas('complexe', fn ($q) => $q->where('owner_id', $user->id));
             }
 
             $subs = $query->orderByDesc('date_debut')->get();
+
             return response()->json(['success' => true, 'data' => $subs, 'count' => $subs->count()]);
         } catch (\Exception $e) {
-            \Log::error('Error in adminAbonnements: ' . $e->getMessage(), [
+            \Log::error('Error in adminAbonnements: '.$e->getMessage(), [
                 'exception' => $e,
                 'user_id' => auth('api')->id() ?? 'unknown',
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Error loading subscriptions',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -378,26 +385,26 @@ class AbonnementAdherentController extends Controller
     {
         try {
             $user = auth('api')->user();
-            if (!$user) {
+            if (! $user) {
                 return response()->json(['success' => false, 'message' => 'Unauthorized.'], 401);
             }
 
-            $query   = TypeAbonnementAdherent::query();
+            $query = TypeAbonnementAdherent::query();
             $abQuery = AbonnementAdherent::query();
 
             if ($user->isGerant()) {
                 $complexeId = Complexe::where('owner_id', $user->id)->value('id');
 
                 // Gérant without an assigned complexe or complexe not found → return zeroed stats
-                if (!$complexeId) {
+                if (! $complexeId) {
                     return response()->json([
                         'success' => true,
                         'data' => [
-                            'formules'            => 0,
-                            'actifs'              => 0,
-                            'complexes'           => 0,
+                            'formules' => 0,
+                            'actifs' => 0,
+                            'complexes' => 0,
                             'en_attente_paiement' => 0,
-                            'total_du'            => 0,
+                            'total_du' => 0,
                         ],
                     ]);
                 }
@@ -406,31 +413,32 @@ class AbonnementAdherentController extends Controller
                 $abQuery->where('complexe_id', $complexeId);
             }
 
-            $formules      = $query->where('active', true)->count();
-            $actifs        = (clone $abQuery)->where('statut', 'actif')->count();
-            $enAttente     = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->count();
-            $totalDu       = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->sum('reste_a_payer');
+            $formules = $query->where('active', true)->count();
+            $actifs = (clone $abQuery)->where('statut', 'actif')->count();
+            $enAttente = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->count();
+            $totalDu = (clone $abQuery)->where('paye', false)->where('statut', 'actif')->sum('reste_a_payer');
             $complexesCount = $user->isGerant() ? 1 : Complexe::where('is_active', true)->count();
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'formules'            => $formules,
-                    'actifs'              => $actifs,
-                    'complexes'           => $complexesCount,
+                    'formules' => $formules,
+                    'actifs' => $actifs,
+                    'complexes' => $complexesCount,
                     'en_attente_paiement' => $enAttente,
-                    'total_du'            => $totalDu,
+                    'total_du' => $totalDu,
                 ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error in AbonnementAdherentController@stats: ' . $e->getMessage(), [
+            \Log::error('Error in AbonnementAdherentController@stats: '.$e->getMessage(), [
                 'exception' => $e,
-                'user_id'   => auth('api')->id() ?? 'unknown',
+                'user_id' => auth('api')->id() ?? 'unknown',
             ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Erreur lors du chargement des statistiques.',
-                'error'   => $e->getMessage(),
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -438,7 +446,7 @@ class AbonnementAdherentController extends Controller
     public function adminConfirmPayment(Request $request, $id): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user->isGerant() && !$user->isAdmin()) {
+        if (! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -468,6 +476,7 @@ class AbonnementAdherentController extends Controller
 
         $sub->update([
             'paye' => true,
+            'statut' => 'actif',
             'reste_a_payer' => 0,
         ]);
 
@@ -477,7 +486,7 @@ class AbonnementAdherentController extends Controller
     public function adminCancel($id): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user->isGerant() && !$user->isAdmin()) {
+        if (! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -487,13 +496,14 @@ class AbonnementAdherentController extends Controller
         }
 
         $sub->update(['statut' => 'annule']);
+
         return response()->json(['success' => true, 'message' => 'Abonnement annulé.']);
     }
 
     public function adminDestroy($id): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user->isGerant() && !$user->isAdmin()) {
+        if (! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -506,7 +516,8 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Impossible de supprimer un abonnement actif.'], 422);
         }
 
-        $sub->delete();
-        return response()->json(['success' => true, 'message' => 'Abonnement supprimé.']);
+        $sub->update(['statut' => 'annule']);
+
+        return response()->json(['success' => true, 'message' => 'Abonnement conservé et marqué comme annulé.']);
     }
 }

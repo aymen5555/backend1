@@ -24,10 +24,10 @@ class Activite extends Model
     ];
 
     protected $casts = [
-        'jours'    => 'array',
-        'active'   => 'boolean',
+        'jours' => 'array',
+        'active' => 'boolean',
         'capacite' => 'integer',
-        'prix'     => 'float',
+        'prix' => 'float',
     ];
 
     public function complexe(): BelongsTo

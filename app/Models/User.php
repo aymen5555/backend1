@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
-use App\Models\Abonnement;
-use App\Models\AbonnementAdherent;
+use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
-class User extends Authenticatable implements JWTSubject
+class User extends Authenticatable implements CanResetPasswordContract, JWTSubject
 {
-    use Notifiable;
+    use CanResetPassword, Notifiable;
 
     protected $fillable = [
         'first_name',
@@ -37,7 +37,7 @@ class User extends Authenticatable implements JWTSubject
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'is_active'         => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     // ---------- JWT ----------
@@ -50,9 +50,9 @@ class User extends Authenticatable implements JWTSubject
     public function getJWTCustomClaims(): array
     {
         return [
-            'role'       => $this->role,
+            'role' => $this->role,
             'first_name' => $this->first_name,
-            'email'      => $this->email,
+            'email' => $this->email,
         ];
     }
 

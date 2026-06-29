@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CategorieProduit;
 use App\Models\Complexe;
 use App\Models\Produit;
 use App\Models\Stock;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ProduitController extends Controller
 {
@@ -42,8 +40,8 @@ class ProduitController extends Controller
 
         if ($request->filled('search')) {
             $query->where(function ($q) use ($request) {
-                $q->where('nom', 'like', '%' . $request->search . '%')
-                  ->orWhere('description', 'like', '%' . $request->search . '%');
+                $q->where('nom', 'like', '%'.$request->search.'%')
+                    ->orWhere('description', 'like', '%'.$request->search.'%');
             });
         }
 
@@ -56,7 +54,7 @@ class ProduitController extends Controller
     /** GET /api/produits/{id} */
     public function show(Produit $produit): JsonResponse
     {
-        if (!$produit->actif) {
+        if (! $produit->actif) {
             return response()->json(['success' => false, 'message' => 'Produit introuvable.'], 404);
         }
 
@@ -196,7 +194,7 @@ class ProduitController extends Controller
         if ($produit->ligneCommandes()->count() > 0 || $produit->ventesDirectes()->count() > 0) {
             return response()->json([
                 'success' => false,
-                'message' => 'Impossible de supprimer : ce produit a des ventes ou des commandes liées. Désactivez-le à la place.'
+                'message' => 'Impossible de supprimer : ce produit a des ventes ou des commandes liées. Désactivez-le à la place.',
             ], 422);
         }
 

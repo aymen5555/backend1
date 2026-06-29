@@ -2,13 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Complexe;
 use App\Models\Reservation;
 use App\Models\Terrain;
-use App\Models\Complexe;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
-use Carbon\Carbon;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ReservationPaymentFlowTest extends TestCase
@@ -38,9 +38,6 @@ class ReservationPaymentFlowTest extends TestCase
                 'modalite_paiement' => 'carte',
             ]);
 
-        if ($res->status() !== 201) {
-            file_put_contents(base_path('tests/_output/res_create.json'), $res->getContent());
-        }
         $res->assertStatus(201)->assertJson(['success' => true]);
         $id = $res->json('data.id');
 

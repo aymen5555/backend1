@@ -6,15 +6,19 @@ use App\Models\Activite;
 use App\Models\Complexe;
 use App\Models\ReservationActivite;
 use App\Models\User;
+use App\Services\PricingService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ActiviteController extends Controller
 {
+    public function __construct(
+        private readonly PricingService $pricing
+    ) {}
     /* ─────────────────────────────────────────────────────
      | PUBLIC — no auth required
      ───────────────────────────────────────────────────── */
@@ -38,20 +42,20 @@ class ActiviteController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $query->latest()->get(),
+            'data' => $query->latest()->get(),
         ]);
     }
 
     /** GET /api/activites/{id} */
     public function show(Activite $activite): JsonResponse
     {
-        if (!$activite->active) {
+        if (! $activite->active) {
             return response()->json(['success' => false, 'message' => 'Activité introuvable.'], 404);
         }
 
         return response()->json([
             'success' => true,
-            'data'    => $activite->load('complexe'),
+            'data' => $activite->load('complexe'),
         ]);
     }
 
@@ -59,14 +63,14 @@ class ActiviteController extends Controller
     public function places(Request $request, Activite $activite): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'date' => 'required|date|after_or_equal:tomorrow',
+            'date' => 'required|date|after_or_equal:today',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Date invalide.',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
@@ -77,12 +81,12 @@ class ActiviteController extends Controller
         ];
         $day = $dayMap[Carbon::parse($date)->dayOfWeek] ?? '';
 
-        if (!$activite->active || !in_array($day, $activite->jours ?? [], true)) {
+        if (! $activite->active || ! in_array($day, $activite->jours ?? [], true)) {
             return response()->json([
-                'success'           => true,
-                'places_restantes'  => 0,
-                'booked'            => null,
-                'message'           => 'Cette activité n’a pas lieu ce jour-là.',
+                'success' => true,
+                'places_restantes' => 0,
+                'booked' => null,
+                'message' => 'Cette activité n’a pas lieu ce jour-là.',
             ]);
         }
 
@@ -92,9 +96,9 @@ class ActiviteController extends Controller
             ->count();
 
         return response()->json([
-            'success'          => true,
+            'success' => true,
             'places_restantes' => max($activite->capacite - $booked, 0),
-            'booked'           => $booked,
+            'booked' => $booked,
         ]);
     }
 
@@ -116,7 +120,7 @@ class ActiviteController extends Controller
             ], 422);
         }
 
-        if (!in_array($reservation->statut, ['reservee', 'confirmee'], true)) {
+        if (! in_array($reservation->statut, ['reservee', 'confirmee'], true)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Seules les réservations en attente peuvent être payées',
@@ -130,14 +134,17 @@ class ActiviteController extends Controller
             ], 422);
         }
 
-        $user = $reservation->user;
+        $client = User::findOrFail($reservation->user_id);
         $complexeId = $reservation->activite->complexe_id;
         $prixBase = $reservation->activite->prix ?? 0;
-        $montant = $user->isAdherentAt($complexeId) ? round($prixBase * 0.80, 2) : $prixBase;
+        $montant = $this->pricing->calculateFlat($prixBase, $client, $complexeId);
 
         $reservation->update([
-            'statut'          => 'confirmee',
+            'statut' => 'confirmee',
             'statut_paiement' => 'paye',
+            'montant_paye' => $montant,
+            'modalite_paiement' => $request->modalite_paiement ?? $reservation->modalite_paiement,
+            'reference_paiement' => $request->reference ?? null,
         ]);
 
         // We don't have ReglementReservation for activites, so just update status
@@ -145,7 +152,7 @@ class ActiviteController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Paiement traité avec succès.',
-            'data'    => $reservation->fresh()->load(['activite.complexe', 'user:id,first_name,last_name,email']),
+            'data' => $reservation->fresh()->load(['activite.complexe', 'user:id,first_name,last_name,email']),
         ]);
     }
 
@@ -153,22 +160,35 @@ class ActiviteController extends Controller
     public function reserver(Request $request, Activite $activite): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'date_seance'        => 'required|date|after:today',
-            'modalite_paiement'  => 'required|in:especes,carte',
+            'date_seance' => 'required|date|after:today',
+            'modalite_paiement' => 'required|in:especes,carte',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation échouée.',
-                'errors'  => $validator->errors(),
+                'errors' => $validator->errors(),
             ], 422);
         }
 
-        if (!$activite->active) {
+        if (! $activite->active) {
             return response()->json([
                 'success' => false,
                 'message' => "Cette activité n'est plus disponible.",
+            ], 422);
+        }
+
+        // Validate that the requested date falls on a day this activity runs
+        $dayMap = [
+            0 => 'dimanche', 1 => 'lundi', 2 => 'mardi',
+            3 => 'mercredi', 4 => 'jeudi', 5 => 'vendredi', 6 => 'samedi',
+        ];
+        $day = $dayMap[Carbon::parse($request->date_seance)->dayOfWeek] ?? '';
+        if (! in_array($day, $activite->jours ?? [], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => "Cette activité n'a pas lieu ce jour-là.",
             ], 422);
         }
 
@@ -208,24 +228,25 @@ class ActiviteController extends Controller
             $user = auth('api')->user();
             $complexeId = $locked->complexe_id;
 
-            // Adhérent discount: 20% off for active subscribers at this complexe
+            // Adhérent discount via PricingService
             $prixBase = $locked->prix ?? 0;
-            $prix = $user->isAdherentAt($complexeId) ? round($prixBase * 0.80, 2) : $prixBase;
+            $prix = $this->pricing->calculateFlat($prixBase, $user, $complexeId);
 
             $reservation = ReservationActivite::create([
-                'activite_id'        => $locked->id,
-                'user_id'            => auth('api')->id(),
-                'date_seance'        => $request->date_seance,
-                'statut'             => 'reservee',
-                'statut_paiement'    => 'non_paye',
-                'modalite_paiement'  => $request->modalite_paiement,
-                'notes'              => $request->notes,
+                'activite_id' => $locked->id,
+                'user_id' => auth('api')->id(),
+                'date_seance' => $request->date_seance,
+                'statut' => 'reservee',
+                'statut_paiement' => 'non_paye',
+                'modalite_paiement' => $request->modalite_paiement,
+                'notes' => $request->notes,
+                'montant_paye' => $prix,
             ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Activité réservée avec succès.',
-                'data'    => $reservation->load(['activite.complexe']),
+                'data' => $reservation->load(['activite.complexe']),
                 'montant_a_payer' => $prix,
             ], 201);
         });
@@ -234,6 +255,8 @@ class ActiviteController extends Controller
     /** GET /api/mes-activites */
     public function mesActivites(): JsonResponse
     {
+        ReservationActivite::updateExpiredStatus();
+
         $reservations = ReservationActivite::with(['activite.complexe'])
             ->where('user_id', auth('api')->id())
             ->orderByDesc('date_seance')
@@ -241,7 +264,7 @@ class ActiviteController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $reservations,
+            'data' => $reservations,
         ]);
     }
 
@@ -252,6 +275,15 @@ class ActiviteController extends Controller
             return response()->json(['success' => false, 'message' => 'Interdit.'], 403);
         }
 
+        // Bypass 2-hour rule for unpaid card reservations (user aborted payment)
+        if ($reservation->modalite_paiement === 'carte' && $reservation->statut_paiement === 'non_paye') {
+            $reservation->update(['statut' => 'annulee']);
+            return response()->json([
+                'success' => true,
+                'message' => 'Réservation annulée — paiement non effectué.',
+            ]);
+        }
+
         if ($reservation->statut !== 'reservee') {
             return response()->json([
                 'success' => false,
@@ -260,8 +292,17 @@ class ActiviteController extends Controller
         }
 
         // Must be more than 2 hours before the session
-        $seanceAt = Carbon::parse($reservation->date_seance->format('Y-m-d') . ' ' . $reservation->activite->heure_debut);
-        if (Carbon::now('Africa/Tunis')->diffInHours($seanceAt, false) < 2) {
+        $seanceAt = Carbon::parse($reservation->date_seance->format('Y-m-d').' '.$reservation->activite->heure_debut);
+        $now = Carbon::now('Africa/Tunis');
+
+        if ($now->gte($seanceAt)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Annulation impossible après le début de la séance.',
+            ], 422);
+        }
+
+        if ($seanceAt->diffInHours($now) < 2) {
             return response()->json([
                 'success' => false,
                 'message' => 'Annulation impossible moins de 2h avant la séance.',
@@ -282,13 +323,13 @@ class ActiviteController extends Controller
         if ($reservation->statut !== 'annulee') {
             return response()->json([
                 'success' => false,
-                'message' => 'Seules les réservations annulées peuvent être supprimées.',
+                'message' => 'Seules les réservations annulées peuvent être conservées.',
             ], 422);
         }
 
-        $reservation->delete();
+        $reservation->update(['statut' => 'annulee']);
 
-        return response()->json(['success' => true, 'message' => 'Réservation supprimée.']);
+        return response()->json(['success' => true, 'message' => 'Réservation conservée et marquée comme annulée.']);
     }
 
     /* ─────────────────────────────────────────────────────
@@ -316,18 +357,18 @@ class ActiviteController extends Controller
         $user = JWTAuth::user();
 
         $validator = Validator::make($request->all(), [
-            'complexe_id'  => 'required|exists:complexes,id',
-            'nom'          => 'required|string|max:255',
-            'description'  => 'nullable|string',
-            'sport'        => 'required|in:yoga,fitness,natation,musculation,football,padel,tennis,basketball,volleyball,handball',
-            'niveau'       => 'required|in:debutant,intermediaire,expert,tous',
-            'capacite'     => 'required|integer|min:1|max:100',
-            'prix'         => 'required|numeric|min:0',
-            'heure_debut'  => 'required|date_format:H:i',
-            'heure_fin'    => 'required|date_format:H:i|after:heure_debut',
-            'jours'        => 'required|array|min:1',
-            'jours.*'      => 'in:lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche',
-            'image'        => 'nullable|string',
+            'complexe_id' => 'required|exists:complexes,id',
+            'nom' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'sport' => 'required|in:yoga,fitness,natation,musculation,football,padel,tennis,basketball,volleyball,handball',
+            'niveau' => 'required|in:debutant,intermediaire,expert,tous',
+            'capacite' => 'required|integer|min:1|max:100',
+            'prix' => 'required|numeric|min:0',
+            'heure_debut' => 'required|date_format:H:i',
+            'heure_fin' => 'required|date_format:H:i|after:heure_debut',
+            'jours' => 'required|array|min:1',
+            'jours.*' => 'in:lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche',
+            'image' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
@@ -336,13 +377,13 @@ class ActiviteController extends Controller
 
         // Make sure the complexe belongs to the admin (super_admin can create for any complex)
         $user = auth('api')->user();
-        $myComplexeIds = ($user && $user->role === 'gerant') 
+        $myComplexeIds = ($user && $user->role === 'gerant')
             ? Complexe::where('owner_id', $user->id)->pluck('id')
             : Complexe::pluck('id');
 
         $complexe = Complexe::whereIn('id', $myComplexeIds)->where('id', $request->complexe_id)->first();
 
-        if (!$complexe) {
+        if (! $complexe) {
             return response()->json(['success' => false, 'message' => 'Complexe non trouvé.'], 403);
         }
 
@@ -350,7 +391,7 @@ class ActiviteController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $activite->load('complexe'),
+            'data' => $activite->load('complexe'),
         ], 201);
     }
 
@@ -360,18 +401,18 @@ class ActiviteController extends Controller
         $this->authorizeAdmin($activite);
 
         $validator = Validator::make($request->all(), [
-            'nom'         => 'sometimes|string|max:255',
+            'nom' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
-            'sport'       => 'sometimes|in:yoga,fitness,natation,musculation,football,padel,tennis,basketball,volleyball,handball',
-            'niveau'      => 'sometimes|in:debutant,intermediaire,expert,tous',
-            'capacite'    => 'sometimes|integer|min:1|max:100',
-            'prix'        => 'sometimes|numeric|min:0',
+            'sport' => 'sometimes|in:yoga,fitness,natation,musculation,football,padel,tennis,basketball,volleyball,handball',
+            'niveau' => 'sometimes|in:debutant,intermediaire,expert,tous',
+            'capacite' => 'sometimes|integer|min:1|max:100',
+            'prix' => 'sometimes|numeric|min:0',
             'heure_debut' => 'sometimes|date_format:H:i',
-            'heure_fin'   => 'sometimes|date_format:H:i',
-            'jours'       => 'sometimes|array|min:1',
-            'jours.*'     => 'in:lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche',
-            'image'       => 'nullable|string',
-            'active'      => 'sometimes|boolean',
+            'heure_fin' => 'sometimes|date_format:H:i',
+            'jours' => 'sometimes|array|min:1',
+            'jours.*' => 'in:lundi,mardi,mercredi,jeudi,vendredi,samedi,dimanche',
+            'image' => 'nullable|string',
+            'active' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -396,9 +437,11 @@ class ActiviteController extends Controller
     /** GET /api/admin/activites/reservations */
     public function adminReservations(): JsonResponse
     {
+        ReservationActivite::updateExpiredStatus();
+
         $user = auth('api')->user();
-        $myComplexeIds = ($user && $user->role === 'gerant') 
-            ? Complexe::where('owner_id', $user->id)->pluck('id') 
+        $myComplexeIds = ($user && $user->role === 'gerant')
+            ? Complexe::where('owner_id', $user->id)->pluck('id')
             : Complexe::pluck('id');
 
         $query = ReservationActivite::with(['activite.complexe', 'user:id,first_name,last_name,email'])
@@ -409,14 +452,16 @@ class ActiviteController extends Controller
         return response()->json(['success' => true, 'data' => $reservations]);
     }
 
-    /** PUT /api/admin/activites/reservations/{id}/confirm */
+    /** api/admin/activites/reservations/{id}/confirm */
     public function confirmReservation(Request $request, ReservationActivite $reservation): JsonResponse
     {
         $this->authorizeAdminReservation($reservation);
 
         $validator = Validator::make($request->all(), [
             'modalite_paiement' => 'required|in:especes,carte',
-            'statut_paiement'   => 'required|in:paye',
+            'statut_paiement' => 'required|in:paye',
+            'reference' => 'nullable|string|max:100',
+            'montant' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -424,9 +469,11 @@ class ActiviteController extends Controller
         }
 
         $reservation->update([
-            'statut'            => 'confirmee',
-            'statut_paiement'   => 'paye',
+            'statut' => 'confirmee',
+            'statut_paiement' => 'paye',
             'modalite_paiement' => $request->modalite_paiement,
+            'reference_paiement' => $request->reference ?? $reservation->reference_paiement,
+            'montant_paye' => $request->montant ?? $reservation->montant_paye,
         ]);
 
         return response()->json(['success' => true, 'data' => $reservation->fresh()->load(['activite.complexe', 'user:id,first_name,last_name,email'])]);
@@ -449,13 +496,24 @@ class ActiviteController extends Controller
         if ($reservation->statut !== 'annulee') {
             return response()->json([
                 'success' => false,
-                'message' => 'Only cancelled activity reservations can be deleted.',
+                'message' => 'Only cancelled activity reservations can be archived.',
             ], 422);
         }
 
-        $reservation->delete();
+        $hasPayment = $reservation->statut_paiement === 'paye';
 
-        return response()->json(['success' => true, 'message' => 'Réservation supprimée.']);
+        if ($hasPayment) {
+            $reservation->delete();
+            $message = 'Réservation d\'activité archivée (supprimée de l\'affichage).';
+        } else {
+            $reservation->forceDelete();
+            $message = 'Réservation d\'activité supprimée définitivement.';
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+        ]);
     }
 
     /* ─────────────────────────────────────────────────────

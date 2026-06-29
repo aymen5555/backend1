@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\CategorieProduit;
+use App\Models\Commande;
+use App\Models\Complexe;
+use App\Models\LigneCommande;
 use App\Models\Produit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,7 +63,7 @@ class CategoryFlowTest extends TestCase
     {
         $token = $this->getSuperAdminToken();
 
-        $complexe = \App\Models\Complexe::create([
+        $complexe = Complexe::create([
             'name' => 'Test Complexe',
             'address' => '123 Test St',
             'city' => 'Test Ville',
@@ -68,7 +71,7 @@ class CategoryFlowTest extends TestCase
         ]);
 
         $category = CategorieProduit::create(['nom' => 'Cat With Products', 'active' => true]);
-        
+
         // Create a product in this category
         Produit::create([
             'nom' => 'Test Product',
@@ -112,7 +115,7 @@ class CategoryFlowTest extends TestCase
     {
         $token = $this->getSuperAdminToken();
 
-        $complexe = \App\Models\Complexe::create([
+        $complexe = Complexe::create([
             'name' => 'Test Complexe',
             'address' => '123 Test St',
             'city' => 'Test Ville',
@@ -140,7 +143,7 @@ class CategoryFlowTest extends TestCase
             'role' => 'client',
         ]);
 
-        $commande = \App\Models\Commande::create([
+        $commande = Commande::create([
             'user_id' => $client->id,
             'complexe_id' => $complexe->id,
             'statut' => 'en_attente',
@@ -149,7 +152,7 @@ class CategoryFlowTest extends TestCase
             'montant_total' => 10.0,
         ]);
 
-        \App\Models\LigneCommande::create([
+        LigneCommande::create([
             'commande_id' => $commande->id,
             'produit_id' => $product->id,
             'quantite' => 1,
@@ -163,7 +166,7 @@ class CategoryFlowTest extends TestCase
         $response->assertStatus(422)
             ->assertJson([
                 'success' => false,
-                'message' => 'Impossible de supprimer : ce produit a des ventes ou des commandes liées. Désactivez-le à la place.'
+                'message' => 'Impossible de supprimer : ce produit a des ventes ou des commandes liées. Désactivez-le à la place.',
             ]);
 
         $this->assertDatabaseHas('produits', ['id' => $product->id]);
@@ -173,7 +176,7 @@ class CategoryFlowTest extends TestCase
     {
         $token = $this->getSuperAdminToken();
 
-        $complexe = \App\Models\Complexe::create([
+        $complexe = Complexe::create([
             'name' => 'Test Complexe',
             'address' => '123 Test St',
             'city' => 'Test Ville',
@@ -198,7 +201,7 @@ class CategoryFlowTest extends TestCase
         $response->assertStatus(200)
             ->assertJson([
                 'success' => true,
-                'message' => 'Produit supprimé définitivement.'
+                'message' => 'Produit supprimé définitivement.',
             ]);
 
         $this->assertDatabaseMissing('produits', ['id' => $product->id]);

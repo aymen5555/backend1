@@ -26,7 +26,7 @@ class CategorieProduit extends Model
         parent::boot();
 
         static::creating(function ($categorie) {
-            if (empty($categorie->slug) && !empty($categorie->nom)) {
+            if (empty($categorie->slug) && ! empty($categorie->nom)) {
                 $categorie->slug = Str::slug($categorie->nom);
             }
         });

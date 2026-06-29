@@ -5,8 +5,8 @@ namespace App\Http\Middleware;
 use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
-use Tymon\JWTAuth\Facades\JWTAuth;
 use Tymon\JWTAuth\Exceptions\JWTException;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 class RoleMiddleware
 {
@@ -21,7 +21,7 @@ class RoleMiddleware
             ], 401);
         }
 
-        if (!$user || !$this->roleMatches($user->role, $roles)) {
+        if (! $user || ! $this->roleMatches($user->role, $roles)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Forbidden. You do not have permission to access this resource.',

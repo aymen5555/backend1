@@ -15,12 +15,12 @@ class UserSeeder extends Seeder
         User::updateOrCreate(
             ['email' => $adminEmail],
             [
-                'first_name'        => 'Aymen',
-                'last_name'         => 'Charfeddine',
-                'phone'             => '+216 XX XXX XXX',
-                'password'          => Hash::make('Admin@1234'),
-                'role'              => 'super_admin',
-                'is_active'         => true,
+                'first_name' => 'Aymen',
+                'last_name' => 'Charfeddine',
+                'phone' => '+216 XX XXX XXX',
+                'password' => Hash::make('Admin@1234'),
+                'role' => 'super_admin',
+                'is_active' => true,
                 'email_verified_at' => now(),
             ]
         );
@@ -29,12 +29,26 @@ class UserSeeder extends Seeder
         User::firstOrCreate(
             ['email' => 'client@playspace.tn'],
             [
-                'first_name'        => 'Test',
-                'last_name'         => 'Client',
-                'phone'             => '+216 99 999 999',
-                'password'          => Hash::make('Client@1234'),
-                'role'              => 'client',
-                'is_active'         => true,
+                'first_name' => 'Test',
+                'last_name' => 'Client',
+                'phone' => '+216 99 999 999',
+                'password' => Hash::make('Client@1234'),
+                'role' => 'client',
+                'is_active' => true,
+                'email_verified_at' => now(),
+            ]
+        );
+
+        // Create a demo GERANT account for testing
+        User::firstOrCreate(
+            ['email' => 'gerant@playspace.tn'],
+            [
+                'first_name' => 'Test',
+                'last_name' => 'Gerant',
+                'phone' => '+216 98 888 888',
+                'password' => Hash::make('Gerant@1234'),
+                'role' => 'gerant',
+                'is_active' => true,
                 'email_verified_at' => now(),
             ]
         );

@@ -16,10 +16,10 @@ class EmailVerificationService
     {
         EmailVerificationToken::where('user_id', $user->id)->delete();
 
-        $plainToken = self::TOKEN_PREFIX . Str::random(48);
+        $plainToken = self::TOKEN_PREFIX.Str::random(48);
 
         EmailVerificationToken::create([
-            'user_id'    => $user->id,
+            'user_id' => $user->id,
             'token_hash' => hash('sha256', $plainToken),
             'expires_at' => now()->addHours(24),
             'created_at' => now(),
@@ -35,12 +35,12 @@ class EmailVerificationService
     public function verificationUrl(string $plainToken): string
     {
         return rtrim(env('FRONTEND_URL', 'http://localhost:4200'), '/')
-            . '/auth/verify-email?token=' . urlencode($plainToken);
+            .'/auth/verify-email?token='.urlencode($plainToken);
     }
 
     public function verify(string $plainToken): ?User
     {
-        if (!str_starts_with($plainToken, self::TOKEN_PREFIX)) {
+        if (! str_starts_with($plainToken, self::TOKEN_PREFIX)) {
             return null;
         }
 
@@ -48,7 +48,7 @@ class EmailVerificationService
             ->where('expires_at', '>', now())
             ->first();
 
-        if (!$record) {
+        if (! $record) {
             return null;
         }
 
@@ -64,7 +64,7 @@ class EmailVerificationService
     {
         $user = User::where('email', strtolower($email))->first();
 
-        if (!$user || $user->email_verified_at) {
+        if (! $user || $user->email_verified_at) {
             return null;
         }
 

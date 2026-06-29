@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Commande;
 use App\Models\Complexe;
-use App\Models\Produit;
 use App\Models\NotationComplexe;
 use App\Models\NotationProduit;
+use App\Models\Produit;
 use App\Models\Reservation;
 use App\Models\ReservationActivite;
-use App\Models\Commande;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -28,7 +28,7 @@ class NotationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $notations,
+            'data' => $notations,
         ]);
     }
 
@@ -44,7 +44,7 @@ class NotationController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $notations,
+            'data' => $notations,
         ]);
     }
 
@@ -57,7 +57,7 @@ class NotationController extends Controller
 
         $validator = Validator::make($request->all(), [
             'complexe_id' => 'required|exists:complexes,id',
-            'note'        => 'required|integer|min:1|max:5',
+            'note' => 'required|integer|min:1|max:5',
             'commentaire' => 'nullable|string|max:1000',
         ]);
 
@@ -68,7 +68,7 @@ class NotationController extends Controller
         $complexeId = $request->complexe_id;
 
         // Check eligibility
-        if (!$this->checkComplexeEligibility($user->id, $complexeId)) {
+        if (! $this->checkComplexeEligibility($user->id, $complexeId)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Vous n\'êtes pas éligible à noter ce complexe. Vous devez y avoir effectué une réservation.',
@@ -86,7 +86,7 @@ class NotationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Votre avis a été enregistré avec succès.',
-            'data'    => $notation,
+            'data' => $notation,
         ]);
     }
 
@@ -98,8 +98,8 @@ class NotationController extends Controller
         $user = JWTAuth::parseToken()->authenticate();
 
         $validator = Validator::make($request->all(), [
-            'produit_id'  => 'required|exists:produits,id',
-            'note'        => 'required|integer|min:1|max:5',
+            'produit_id' => 'required|exists:produits,id',
+            'note' => 'required|integer|min:1|max:5',
             'commentaire' => 'nullable|string|max:1000',
         ]);
 
@@ -110,7 +110,7 @@ class NotationController extends Controller
         $produitId = $request->produit_id;
 
         // Check eligibility
-        if (!$this->checkProduitEligibility($user->id, $produitId)) {
+        if (! $this->checkProduitEligibility($user->id, $produitId)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Vous n\'êtes pas éligible à noter ce produit. Vous devez l\'avoir acheté au préalable.',
@@ -126,7 +126,7 @@ class NotationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Votre avis a été enregistré avec succès.',
-            'data'    => $notation,
+            'data' => $notation,
         ]);
     }
 
@@ -138,7 +138,7 @@ class NotationController extends Controller
         $user = JWTAuth::parseToken()->authenticate();
         $notation = NotationComplexe::findOrFail($id);
 
-        if ($notation->user_id !== $user->id && !$user->isAdmin()) {
+        if ($notation->user_id !== $user->id && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
@@ -161,7 +161,7 @@ class NotationController extends Controller
         $user = JWTAuth::parseToken()->authenticate();
         $notation = NotationProduit::findOrFail($id);
 
-        if ($notation->user_id !== $user->id && !$user->isAdmin()) {
+        if ($notation->user_id !== $user->id && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Unauthorized.'], 403);
         }
 
@@ -179,7 +179,7 @@ class NotationController extends Controller
     public function myEligibility(Request $request): JsonResponse
     {
         $user = auth('api')->user();
-        if (!$user) {
+        if (! $user) {
             return response()->json(['eligible' => false]);
         }
 
@@ -191,7 +191,7 @@ class NotationController extends Controller
                 ->exists();
 
             return response()->json([
-                'eligible'      => $eligible && !$alreadyRated,
+                'eligible' => $eligible && ! $alreadyRated,
                 'already_rated' => $alreadyRated,
             ]);
         }
@@ -204,7 +204,7 @@ class NotationController extends Controller
                 ->exists();
 
             return response()->json([
-                'eligible'      => $eligible && !$alreadyRated,
+                'eligible' => $eligible && ! $alreadyRated,
                 'already_rated' => $alreadyRated,
             ]);
         }
@@ -212,18 +212,17 @@ class NotationController extends Controller
         // Return list of ids
         $terrainComplexes = Complexe::whereHas('terrains.reservations', function ($q) use ($user) {
             $q->where('user_id', $user->id)
-              ->where(function ($sq) {
-                  $sq->where('statut_paiement', 'paye')
-                     ->orWhereIn('status', ['confirmed', 'played']);
-              });
+                ->where('status', 'played')
+                ->where('start_at', '<', now());
         })->pluck('id')->toArray();
 
         $activityComplexes = Complexe::whereHas('activites.reservations', function ($q) use ($user) {
             $q->where('user_id', $user->id)
-              ->where(function ($sq) {
-                  $sq->where('statut_paiement', 'paye')
-                     ->orWhereIn('statut', ['confirmee']);
-              });
+                ->where('date_seance', '<', now()->toDateString())
+                ->where(function ($sq) {
+                    $sq->where('statut_paiement', 'paye')
+                        ->orWhereIn('statut', ['confirmee']);
+                });
         })->pluck('id')->toArray();
 
         $eligibleComplexes = array_unique(array_merge($terrainComplexes, $activityComplexes));
@@ -238,7 +237,7 @@ class NotationController extends Controller
 
         return response()->json([
             'eligible_complexes' => $canRateComplexes,
-            'eligible_produits'  => $canRateProducts,
+            'eligible_produits' => $canRateProducts,
         ]);
     }
 
@@ -248,10 +247,8 @@ class NotationController extends Controller
             ->whereHas('terrain', function ($q) use ($complexeId) {
                 $q->where('complexe_id', $complexeId);
             })
-            ->where(function ($q) {
-                $q->where('statut_paiement', 'paye')
-                  ->orWhereIn('status', ['confirmed', 'played']);
-            })
+            ->where('status', 'played')
+            ->where('start_at', '<', now())
             ->exists();
 
         $hasActivityReservation = ReservationActivite::where('user_id', $userId)
@@ -260,7 +257,7 @@ class NotationController extends Controller
             })
             ->where(function ($q) {
                 $q->where('statut_paiement', 'paye')
-                  ->orWhereIn('statut', ['confirmee']);
+                    ->orWhereIn('statut', ['confirmee']);
             })
             ->exists();
 

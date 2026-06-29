@@ -2,11 +2,11 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Carbon\Carbon;
 
 class AbonnementAdherent extends Model
 {
@@ -37,6 +37,34 @@ class AbonnementAdherent extends Model
         'remise' => 'integer',
         'paye' => 'boolean',
     ];
+
+    protected $appends = [
+        'modalite_paiement',
+        'reference',
+    ];
+
+    public function getModalitePaiementAttribute(): ?string
+    {
+        $latest = $this->latestReglement();
+
+        return $latest?->modalite;
+    }
+
+    public function getReferenceAttribute(): ?string
+    {
+        $latest = $this->latestReglement();
+
+        return $latest?->reference;
+    }
+
+    private function latestReglement()
+    {
+        if ($this->relationLoaded('reglements')) {
+            return $this->reglements->sortByDesc('date_reglement')->first();
+        }
+
+        return $this->reglements()->orderByDesc('date_reglement')->first();
+    }
 
     public function isActif(): bool
     {

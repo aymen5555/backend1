@@ -18,7 +18,7 @@ class ProfilFitnessController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => $profil, // null if not exists
+            'data' => $profil, // null if not exists
         ]);
     }
 
@@ -53,7 +53,7 @@ class ProfilFitnessController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Profil fitness créé avec succès.',
-            'data'    => $profil->fresh(),
+            'data' => $profil->fresh(),
         ], 201);
     }
 
@@ -63,7 +63,7 @@ class ProfilFitnessController extends Controller
         $user = JWTAuth::user();
         $profil = ProfilFitness::where('user_id', $user->id)->first();
 
-        if (!$profil) {
+        if (! $profil) {
             return response()->json([
                 'success' => false,
                 'message' => 'No fitness profile found. Use POST to create one.',
@@ -88,19 +88,19 @@ class ProfilFitnessController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Profil fitness mis à jour avec succès.',
-            'data'    => $profil->fresh(),
+            'data' => $profil->fresh(),
         ]);
     }
 
     private function validateRequest(Request $request): \Illuminate\Validation\Validator
     {
         return Validator::make($request->all(), [
-            'taille'             => 'required|integer|min:100|max:250',
-            'poids'              => 'required|numeric|min:30|max:300',
-            'objectif_sportif'   => 'required|string|in:perte_poids,prise_masse,performance',
-            'niveau_sportif'     => 'required|string|in:debutant,intermediaire,expert',
-            'sport_prefere'      => 'required|string|in:football,padel,natation,tennis,musculation,yoga,fitness,volleyball,basketball,handball',
-            'poids_cible'        => 'nullable|numeric|min:20|max:300',
+            'taille' => 'required|integer|min:100|max:250',
+            'poids' => 'required|numeric|min:30|max:300',
+            'objectif_sportif' => 'required|string|in:perte_poids,prise_masse,performance',
+            'niveau_sportif' => 'required|string|in:debutant,intermediaire,expert',
+            'sport_prefere' => 'required|string|in:football,padel,natation,tennis,musculation,yoga,fitness,volleyball,basketball,handball',
+            'poids_cible' => 'nullable|numeric|min:20|max:300',
             'budget_mensuel_min' => 'nullable|numeric|min:0',
             'budget_mensuel_max' => 'nullable|numeric|min:0',
         ]);

@@ -4,8 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class GerantSeeder extends Seeder
 {
@@ -14,16 +14,16 @@ class GerantSeeder extends Seeder
         $email = 'gerant@playspace.tn';
 
         $user = User::firstWhere('email', $email);
-        if (!$user) {
+        if (! $user) {
             $user = User::create([
                 'first_name' => 'Gerant',
-                'last_name'  => 'Test',
-                'email'      => $email,
-                'password'   => Hash::make('Gerant@1234'),
-                'role'       => 'gerant',
-                'phone'      => '+21600000002',
+                'last_name' => 'Test',
+                'email' => $email,
+                'password' => Hash::make('Gerant@1234'),
+                'role' => 'gerant',
+                'phone' => '+21600000002',
                 'email_verified_at' => now(),
-                'is_active'  => true,
+                'is_active' => true,
             ]);
         }
 
@@ -35,16 +35,16 @@ class GerantSeeder extends Seeder
         $emailAhmed = 'ahmed@example.com';
 
         $ahmed = User::firstWhere('email', $emailAhmed);
-        if (!$ahmed) {
+        if (! $ahmed) {
             $ahmed = User::create([
                 'first_name' => 'Ahmed',
-                'last_name'  => 'Demo',
-                'email'      => $emailAhmed,
-                'password'   => Hash::make('SecurePass123'),
-                'role'       => 'gerant',
-                'phone'      => '+21600000003',
+                'last_name' => 'Demo',
+                'email' => $emailAhmed,
+                'password' => Hash::make('SecurePass123'),
+                'role' => 'gerant',
+                'phone' => '+21600000003',
                 'email_verified_at' => now(),
-                'is_active'  => true,
+                'is_active' => true,
             ]);
         }
 

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\CategorieProduit;
-use App\Models\Produit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -73,7 +72,7 @@ class CategorieProduitController extends Controller
     public function update(Request $request, CategorieProduit $categorie): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'nom' => 'sometimes|string|max:255|unique:categorie_produits,nom,' . $categorie->id,
+            'nom' => 'sometimes|string|max:255|unique:categorie_produits,nom,'.$categorie->id,
             'description' => 'nullable|string',
             'active' => 'sometimes|boolean',
         ]);
@@ -100,16 +99,18 @@ class CategorieProduitController extends Controller
     {
         if ($categorie->produits()->count() > 0) {
             $categorie->update(['active' => false]);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Catégorie associée à des produits : elle a été désactivée au lieu d\'être supprimée.'
+                'message' => 'Catégorie associée à des produits : elle a été désactivée au lieu d\'être supprimée.',
             ]);
         }
 
         $categorie->delete();
+
         return response()->json([
             'success' => true,
-            'message' => 'Catégorie supprimée définitivement.'
+            'message' => 'Catégorie supprimée définitivement.',
         ]);
     }
 }

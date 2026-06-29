@@ -10,6 +10,7 @@ class Complexe extends Model
 {
     protected $fillable = [
         'owner_id',
+        'societe_id',
         'name',
         'description',
         'address',
@@ -36,9 +37,10 @@ class Complexe extends Model
 
     public function getImageUrlAttribute(): ?string
     {
-        if ($this->image_c && !str_starts_with($this->image_c, 'http')) {
+        if ($this->image_c && ! str_starts_with($this->image_c, 'http')) {
             return url($this->image_c);
         }
+
         return $this->image_c;
     }
 
@@ -75,5 +77,10 @@ class Complexe extends Model
     public function notations(): HasMany
     {
         return $this->hasMany(NotationComplexe::class, 'complexe_id');
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(Galerie::class, 'complexe_id')->orderBy('ordre');
     }
 }

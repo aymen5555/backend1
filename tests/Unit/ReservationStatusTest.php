@@ -2,10 +2,13 @@
 
 namespace Tests\Unit;
 
+use App\Models\Complexe;
 use App\Models\Reservation;
+use App\Models\Terrain;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
-use Carbon\Carbon;
 
 class ReservationStatusTest extends TestCase
 {
@@ -14,20 +17,20 @@ class ReservationStatusTest extends TestCase
     public function test_update_expired_and_played_statuses()
     {
         // Create required related records: user, complexe, terrain
-        $user = \App\Models\User::create([
+        $user = User::create([
             'first_name' => 'Test',
             'last_name' => 'User',
             'email' => 'test@example.com',
             'password' => bcrypt('password'),
         ]);
 
-        $complexe = \App\Models\Complexe::create([
+        $complexe = Complexe::create([
             'owner_id' => $user->id,
             'name' => 'Demo Complexe',
             'address' => '123 Test St',
         ]);
 
-        $terrain = \App\Models\Terrain::create([
+        $terrain = Terrain::create([
             'complexe_id' => $complexe->id,
             'name' => 'Court 1',
             'sport_type' => 'tennis',

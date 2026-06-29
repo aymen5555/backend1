@@ -14,12 +14,12 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return response()->json([
-        'name'    => 'PlaySpace API',
+        'name' => 'PlaySpace API',
         'version' => 'Sprint 1',
-        'docs'    => [
-            'health'   => url('/up'),
+        'docs' => [
+            'health' => url('/up'),
             'register' => url('/api/auth/register'),
-            'login'    => url('/api/auth/login'),
+            'login' => url('/api/auth/login'),
         ],
         'frontend' => env('FRONTEND_URL', 'http://localhost:4200'),
     ]);
@@ -28,5 +28,5 @@ Route::get('/', function () {
 // Provide a simple named login route so middleware that calls `route('login')`
 // does not throw an exception. Redirects to the SPA login path.
 Route::get('/login', function () {
-    return redirect(env('FRONTEND_URL', 'http://localhost:4200') . '/auth/login');
+    return redirect(env('FRONTEND_URL', 'http://localhost:4200').'/auth/login');
 })->name('login');

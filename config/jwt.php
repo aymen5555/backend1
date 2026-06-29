@@ -1,5 +1,8 @@
 <?php
 
+use Tymon\JWTAuth\Providers\Auth\Illuminate;
+use Tymon\JWTAuth\Providers\JWT\Lcobucci;
+
 /*
 |--------------------------------------------------------------------------
 | JWT Configuration — PlaySpace
@@ -14,8 +17,8 @@ return [
     'secret' => env('JWT_SECRET'),
 
     'keys' => [
-        'public'     => env('JWT_PUBLIC_KEY'),
-        'private'    => env('JWT_PRIVATE_KEY'),
+        'public' => env('JWT_PUBLIC_KEY'),
+        'private' => env('JWT_PRIVATE_KEY'),
         'passphrase' => env('JWT_PASSPHRASE'),
     ],
 
@@ -59,8 +62,8 @@ return [
     'decrypt_cookies' => false,
 
     'providers' => [
-        'jwt'   => Tymon\JWTAuth\Providers\JWT\Lcobucci::class,
-        'auth'  => Tymon\JWTAuth\Providers\Auth\Illuminate::class,
+        'jwt' => Lcobucci::class,
+        'auth' => Illuminate::class,
         'storage' => Tymon\JWTAuth\Providers\Storage\Illuminate::class,
     ],
 ];

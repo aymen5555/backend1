@@ -7,14 +7,16 @@ use App\Models\Complexe;
 use App\Models\LigneCommande;
 use App\Models\Produit;
 use App\Models\Stock;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Tymon\JWTAuth\Facades\JWTAuth;
 
 class CommandeController extends Controller
 {
+    private const ACCESS_DENIED_MESSAGE = 'Accès interdit.';
+
     private function authorizeGerant(Complexe $complexe): void
     {
         $user = auth('api')->user();
@@ -38,76 +40,97 @@ class CommandeController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
+        /** @var User|null $user */
         $user = auth('api')->user();
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => self::ACCESS_DENIED_MESSAGE], 403);
+        }
+
         $complexeId = $request->complexe_id;
+        $items = collect($request->items);
 
-        return DB::transaction(function () use ($request, $user, $complexeId) {
-            $items = collect($request->items);
-            $lignes = [];
+        $produitIds = $items->pluck('produit_id')->unique();
+        $produits = Produit::whereIn('id', $produitIds)
+            ->where('complexe_id', $complexeId)
+            ->where('actif', true)
+            ->get()
+            ->keyBy('id');
 
-            foreach ($items as $item) {
-                $produit = Produit::with('stock')->where('id', $item['produit_id'])
-                    ->where('complexe_id', $complexeId)
-                    ->where('actif', true)
-                    ->first();
-
-                if (!$produit) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Produit introuvable: ' . $item['produit_id'],
-                    ], 422);
-                }
-
-                $stock = $produit->stock;
-                if (!$stock || $stock->quantite_disponible < $item['quantite']) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Stock insuffisant pour ' . $produit->nom,
-                    ], 422);
-                }
-
-                $prixUnitaire = $produit->prix;
-                $sousTotal = $prixUnitaire * $item['quantite'];
-
-                $lignes[] = [
-                    'produit_id' => $produit->id,
-                    'quantite' => $item['quantite'],
-                    'prix_unitaire' => $prixUnitaire,
-                    'sous_total' => $sousTotal,
-                ];
-
-                $stock->decrement('quantite_disponible', $item['quantite']);
+        foreach ($items as $item) {
+            $produit = $produits->get($item['produit_id']);
+            if (! $produit) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Produit introuvable: '.$item['produit_id'],
+                ], 422);
             }
 
-            $montantTotal = array_sum(array_column($lignes, 'sous_total'));
-
-            $commande = Commande::create([
-                'user_id' => $user->id,
-                'complexe_id' => $complexeId,
-                'statut' => 'en_attente',
-                'statut_paiement' => 'non_paye',
-                'modalite_paiement' => $request->modalite_paiement,
-                'notes' => $request->notes,
-                'montant_total' => $montantTotal,
-            ]);
-
-            $createdLignes = [];
-            foreach ($lignes as $ligne) {
-                $ligne['commande_id'] = $commande->id;
-                $createdLignes[] = LigneCommande::create($ligne);
+            $stock = Stock::where('produit_id', $produit->id)->first();
+            if (! $stock || $stock->quantite_disponible < $item['quantite']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Stock insuffisant pour '.$produit->nom,
+                ], 422);
             }
+        }
 
-            $commande->load('lignes.produit');
+        try {
+            return DB::transaction(function () use ($request, $user, $items, $produits, $complexeId) {
+                $lignes = [];
 
-            $commande->lignes->each(function ($ligne) {
-                $ligne->produit_nom = $ligne->produit->nom;
+                foreach ($items as $item) {
+                    $produit = $produits->get($item['produit_id']);
+                    $stock = Stock::where('produit_id', $produit->id)->lockForUpdate()->first();
+                    if (! $stock || $stock->quantite_disponible < $item['quantite']) {
+                        throw new \Exception('Stock insuffisant pour '.$produit->nom);
+                    }
+                    $stock->decrement('quantite_disponible', $item['quantite']);
+
+                    $prixUnitaire = $produit->prix;
+                    $sousTotal = $prixUnitaire * $item['quantite'];
+
+                    $lignes[] = [
+                        'produit_id' => $produit->id,
+                        'quantite' => $item['quantite'],
+                        'prix_unitaire' => $prixUnitaire,
+                        'sous_total' => $sousTotal,
+                    ];
+                }
+
+                $montantTotal = array_sum(array_column($lignes, 'sous_total'));
+
+                $commande = Commande::create([
+                    'user_id' => $user->id,
+                    'complexe_id' => $complexeId,
+                    'statut' => 'en_attente',
+                    'statut_paiement' => 'non_paye',
+                    'modalite_paiement' => $request->modalite_paiement,
+                    'notes' => $request->notes,
+                    'montant_total' => $montantTotal,
+                ]);
+
+                foreach ($lignes as $ligne) {
+                    $ligne['commande_id'] = $commande->id;
+                    LigneCommande::create($ligne);
+                }
+
+                $commande->load('lignes.produit');
+
+                $commande->lignes->each(function ($ligne) {
+                    $ligne->produit_nom = $ligne->produit->nom;
+                });
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $commande,
+                ], 201);
             });
-
+        } catch (\Exception $e) {
             return response()->json([
-                'success' => true,
-                'data' => $commande,
-            ], 201);
-        });
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 
     public function mesCommandes(): JsonResponse
@@ -133,10 +156,15 @@ class CommandeController extends Controller
 
     public function show(Commande $commande): JsonResponse
     {
+        /** @var User|null $user */
         $user = auth('api')->user();
 
-        if ($commande->user_id !== $user->id && !$user->isAdmin() && !$user->isGerant()) {
-            return response()->json(['success' => false, 'message' => 'Accès interdit.'], 403);
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => self::ACCESS_DENIED_MESSAGE], 403);
+        }
+
+        if ($commande->user_id !== $user->id && ! $user->isAdmin() && ! $user->isGerant()) {
+            return response()->json(['success' => false, 'message' => self::ACCESS_DENIED_MESSAGE], 403);
         }
 
         $commande->load(['complexe', 'lignes.produit']);
@@ -153,16 +181,17 @@ class CommandeController extends Controller
 
     public function annuler(Commande $commande): JsonResponse
     {
+        /** @var User|null $user */
         $user = auth('api')->user();
 
-        if ($commande->user_id !== $user->id) {
-            return response()->json(['success' => false, 'message' => 'Accès interdit.'], 403);
+        if (! $user || $commande->user_id !== $user->id) {
+            return response()->json(['success' => false, 'message' => self::ACCESS_DENIED_MESSAGE], 403);
         }
 
         if ($commande->statut !== 'en_attente') {
             return response()->json([
                 'success' => false,
-                'message' => "Seules les commandes en attente peuvent être annulées.",
+                'message' => 'Seules les commandes en attente peuvent être annulées.',
             ], 422);
         }
 
@@ -198,10 +227,18 @@ class CommandeController extends Controller
             $query->where('statut_paiement', $request->statut_paiement);
         }
 
+        if ($request->filled('date_from')) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
         $commandes = $query->orderByDesc('created_at')->get();
 
         $commandes->each(function ($commande) {
-            $commande->client_nom = $commande->user->first_name . ' ' . $commande->user->last_name;
+            $commande->client_nom = $commande->user->first_name.' '.$commande->user->last_name;
             $commande->client_email = $commande->user->email;
             $commande->produits = $commande->lignes->map(function ($ligne) {
                 return [
