@@ -507,7 +507,7 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        $sub = AbonnementAdherent::with('complexe')->findOrFail($id);
+        $sub = AbonnementAdherent::with(['complexe', 'reglements'])->findOrFail($id);
         if ($user->isGerant() && $sub->complexe->owner_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
@@ -516,8 +516,17 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Impossible de supprimer un abonnement actif.'], 422);
         }
 
-        $sub->update(['statut' => 'annule']);
+        // Preserve accounting trace if any payment was ever recorded
+        $hasPayment = $sub->paye || $sub->reglements()->count() > 0;
 
-        return response()->json(['success' => true, 'message' => 'Abonnement conservé et marqué comme annulé.']);
+        if ($hasPayment) {
+            $sub->delete(); // soft-delete — trace comptable préservée
+            $message = 'Abonnement archivé (supprimé de l\'affichage).';
+        } else {
+            $sub->forceDelete(); // aucun paiement, suppression réelle
+            $message = 'Abonnement supprimé définitivement.';
+        }
+
+        return response()->json(['success' => true, 'message' => $message]);
     }
 }
