@@ -11,10 +11,12 @@ class ReservationStatusChanged extends Notification
     use Queueable;
 
     protected $reservation;
+    protected $customMessage;
 
-    public function __construct(Reservation $reservation)
+    public function __construct(Reservation $reservation, ?string $customMessage = null)
     {
         $this->reservation = $reservation;
+        $this->customMessage = $customMessage;
     }
 
     public function via($notifiable): array
@@ -24,11 +26,22 @@ class ReservationStatusChanged extends Notification
 
     public function toArray($notifiable): array
     {
-        $status = $this->reservation->status;
-        $statusLabel = $status === 'played' ? 'terminée' : 'expirée';
-        $dateStr = $this->reservation->start_at ? $this->reservation->start_at->format('Y-m-d') : '';
-        $timeStr = $this->reservation->start_at ? $this->reservation->start_at->format('H:i') : '';
-        $message = "Votre réservation du " . $dateStr . " à " . $timeStr . " est " . $statusLabel . ".";
+        if ($this->customMessage) {
+            $message = $this->customMessage;
+        } else {
+            $status = $this->reservation->status;
+            $labels = [
+                'confirmed' => 'confirmée',
+                'cancelled' => 'annulée',
+                'played' => 'terminée',
+                'expired' => 'expirée',
+                'pending' => 'en attente',
+            ];
+            $statusLabel = $labels[$status] ?? $status;
+            $dateStr = $this->reservation->start_at ? $this->reservation->start_at->format('Y-m-d') : ($this->reservation->date_seance_res ?? '');
+            $timeStr = $this->reservation->start_at ? $this->reservation->start_at->format('H:i') : ($this->reservation->heure_debut_res ?? '');
+            $message = "Votre réservation du " . $dateStr . ($timeStr ? " à " . $timeStr : "") . " est " . $statusLabel . ".";
+        }
 
         return [
             'type' => 'reservation_status_changed',
@@ -37,3 +50,4 @@ class ReservationStatusChanged extends Notification
         ];
     }
 }
+

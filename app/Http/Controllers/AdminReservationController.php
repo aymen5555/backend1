@@ -185,6 +185,10 @@ class AdminReservationController extends Controller
             'reference' => 'cash_confirmed_by_admin',
         ]);
 
+        if ($reservation->user) {
+            $reservation->user->notify(new \App\Notifications\ReservationStatusChanged($reservation, "Le paiement en espèces de votre réservation du " . ($reservation->date_seance_res ?? '') . " a été confirmé."));
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Payment marked as paid successfully.',
@@ -226,6 +230,10 @@ class AdminReservationController extends Controller
 
         $data = $validator->validated();
         $reservation->update($data);
+
+        if ($reservation->user && isset($data['status'])) {
+            $reservation->user->notify(new \App\Notifications\ReservationStatusChanged($reservation));
+        }
 
         return response()->json([
             'success' => true,
@@ -296,6 +304,10 @@ class AdminReservationController extends Controller
             'reference' => $reference,
         ]);
 
+        if ($reservation->user) {
+            $reservation->user->notify(new \App\Notifications\ReservationStatusChanged($reservation, "Le paiement par carte de votre réservation du " . ($reservation->date_seance_res ?? '') . " a été confirmé."));
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Payment recorded successfully.',
@@ -343,6 +355,90 @@ class AdminReservationController extends Controller
         return response()->json([
             'success' => true,
             'message' => $message,
+        ]);
+    }
+
+    public function archives(Request $request): JsonResponse
+    {
+        $user = auth('api')->user();
+        if (! $user || ! $user->isGerantOrAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Forbidden.',
+            ], 403);
+        }
+
+        // 1. Terrain Reservations Archives
+        $resQuery = Reservation::onlyTrashed()->with(['user:id,first_name,last_name,email', 'terrain.complexe']);
+        if (! $user->isAdmin()) {
+            $resQuery->whereHas('terrain.complexe', fn ($q) => $q->where('owner_id', $user->id));
+        }
+        $archivedReservations = $resQuery->get()->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'type' => 'reservation_terrain',
+                'type_label' => 'Réservation Court',
+                'client_name' => $r->user ? ($r->user->first_name . ' ' . $r->user->last_name) : 'N/A',
+                'client_email' => $r->user ? $r->user->email : 'N/A',
+                'complexe_name' => $r->terrain?->complexe?->name ?? 'N/A',
+                'item_detail' => $r->terrain?->name ?? 'N/A',
+                'date' => $r->date_seance_res ?? ($r->start_at ? $r->start_at->format('Y-m-d') : 'N/A'),
+                'montant' => $r->montant_res ?? 0,
+                'statut_precedental' => $r->status,
+                'statut_paiement' => $r->statut_paiement,
+                'deleted_at' => $r->deleted_at?->toIso8601String(),
+            ];
+        });
+
+        // 2. Activite Reservations Archives
+        $actQuery = \App\Models\ReservationActivite::onlyTrashed()->with(['user:id,first_name,last_name,email', 'activite.complexe']);
+        if (! $user->isAdmin()) {
+            $actQuery->whereHas('activite.complexe', fn ($q) => $q->where('owner_id', $user->id));
+        }
+        $archivedActivites = $actQuery->get()->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'type' => 'reservation_activite',
+                'type_label' => 'Réservation Activité',
+                'client_name' => $r->user ? ($r->user->first_name . ' ' . $r->user->last_name) : 'N/A',
+                'client_email' => $r->user ? $r->user->email : 'N/A',
+                'complexe_name' => $r->activite?->complexe?->name ?? 'N/A',
+                'item_detail' => $r->activite?->nom ?? 'N/A',
+                'date' => $r->date_seance ?? 'N/A',
+                'montant' => $r->montant_paye ?? $r->activite?->prix ?? 0,
+                'statut_precedental' => $r->statut,
+                'statut_paiement' => $r->statut_paiement,
+                'deleted_at' => $r->deleted_at?->toIso8601String(),
+            ];
+        });
+
+        // 3. Abonnements Archives
+        $abQuery = \App\Models\AbonnementAdherent::onlyTrashed()->with(['user:id,first_name,last_name,email', 'complexe', 'typeAbonnement']);
+        if (! $user->isAdmin()) {
+            $abQuery->whereHas('complexe', fn ($q) => $q->where('owner_id', $user->id));
+        }
+        $archivedAbonnements = $abQuery->get()->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'type' => 'abonnement',
+                'type_label' => 'Abonnement Client',
+                'client_name' => $r->user ? ($r->user->first_name . ' ' . $r->user->last_name) : 'N/A',
+                'client_email' => $r->user ? $r->user->email : 'N/A',
+                'complexe_name' => $r->complexe?->name ?? 'N/A',
+                'item_detail' => $r->typeAbonnement?->nom ?? 'Abonnement',
+                'date' => $r->date_debut ? $r->date_debut->format('Y-m-d') : 'N/A',
+                'montant' => $r->montant_apres_remise ?? $r->montant_vente ?? 0,
+                'statut_precedental' => $r->statut,
+                'statut_paiement' => $r->paye ? 'paye' : 'non_paye',
+                'deleted_at' => $r->deleted_at?->toIso8601String(),
+            ];
+        });
+
+        $allArchives = $archivedReservations->concat($archivedActivites)->concat($archivedAbonnements)->sortByDesc('deleted_at')->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $allArchives,
         ]);
     }
 }

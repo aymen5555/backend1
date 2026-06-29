@@ -128,6 +128,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('admin/reservations/{reservation}/confirm-payment', [AdminReservationController::class, 'confirmCardPayment']);
         Route::put('admin/reservations/{reservation}', [AdminReservationController::class, 'adminUpdate']);
         Route::delete('admin/reservations/{reservation}', [AdminReservationController::class, 'adminDestroy']);
+        Route::get('admin/archives', [AdminReservationController::class, 'archives']);
     });
 
     // User Profile
@@ -232,6 +233,9 @@ Route::middleware('auth:api')->group(function () {
         Route::get('admin/bons-sortie', [BonSortieController::class, 'index']);
         Route::post('admin/bons-sortie', [BonSortieController::class, 'store']);
         Route::get('admin/bons-sortie/{bonSortie}', [BonSortieController::class, 'show']);
+
+        Route::apiResource('admin/types-depenses', TypeDepenseController::class);
+        Route::apiResource('admin/depenses', DepenseController::class);
     });
 
     // ── Categories SUPER_ADMIN only ───────────────────────────────────────────
@@ -240,9 +244,6 @@ Route::middleware('auth:api')->group(function () {
         Route::post('admin/categories-produits', [CategorieProduitController::class, 'store']);
         Route::put('admin/categories-produits/{categorie}', [CategorieProduitController::class, 'update']);
         Route::delete('admin/categories-produits/{categorie}', [CategorieProduitController::class, 'destroy']);
-
-        Route::apiResource('admin/types-depenses', TypeDepenseController::class);
-        Route::apiResource('admin/depenses', DepenseController::class);
         Route::apiResource('admin/societes', SocieteController::class);
         Route::apiResource('admin/societes/{societe}/dirigeants', DirigeantController::class)->only(['index', 'store', 'destroy']);
         Route::apiResource('admin/equipements', EquipementController::class);
