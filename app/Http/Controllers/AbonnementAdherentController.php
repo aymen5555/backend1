@@ -211,7 +211,9 @@ class AbonnementAdherentController extends Controller
                 $query->whereHas('complexe', fn ($q) => $q->where('owner_id', $user->id));
             }
 
-            $types = $query->with('complexe')->get();
+            $types = $query->with('complexe')
+                ->withCount(['abonnements as abonnements_count'])
+                ->get();
 
             return response()->json(['success' => true, 'data' => $types, 'count' => $types->count()]);
         } catch (\Exception $e) {

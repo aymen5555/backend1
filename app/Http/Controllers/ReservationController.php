@@ -372,20 +372,12 @@ class ReservationController extends Controller
             ], 422);
         }
 
-        $hasPayment = in_array($reservation->statut_paiement, ['paye', 'rembourse']) 
-            || $reservation->reglements()->count() > 0;
-
-        if ($hasPayment) {
-            $reservation->delete();
-            $message = 'Réservation archivée (supprimée de l\'affichage).';
-        } else {
-            $reservation->forceDelete();
-            $message = 'Réservation supprimée définitivement.';
-        }
+        // Always soft-delete for audit trail — archives show ALL deleted records
+        $reservation->delete();
 
         return response()->json([
             'success' => true,
-            'message' => $message,
+            'message' => 'Réservation archivée.',
         ]);
     }
 
