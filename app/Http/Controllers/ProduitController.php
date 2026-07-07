@@ -47,6 +47,7 @@ class ProduitController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Products loaded successfully.',
             'data' => $query->latest()->get(),
         ]);
     }
@@ -60,6 +61,7 @@ class ProduitController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Product loaded successfully.',
             'data' => $produit->load(['categorie', 'stock', 'complexe']),
         ]);
     }
@@ -94,7 +96,11 @@ class ProduitController extends Controller
             $produit->alerte_stock = $produit->stock && $produit->stock->alerteStock();
         });
 
-        return response()->json(['success' => true, 'data' => $produits]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Products loaded successfully.',
+            'data' => $produits,
+        ]);
     }
 
     /** POST /api/admin/produits */
@@ -138,6 +144,7 @@ class ProduitController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Product created successfully.',
             'data' => $produit->load(['categorie', 'stock', 'complexe']),
         ], 201);
     }
@@ -182,6 +189,7 @@ class ProduitController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Product updated successfully.',
             'data' => $produit->fresh()->load(['categorie', 'stock', 'complexe']),
         ]);
     }
@@ -200,7 +208,11 @@ class ProduitController extends Controller
 
         $produit->delete();
 
-        return response()->json(['success' => true, 'message' => 'Produit supprimé définitivement.']);
+        return response()->json([
+            'success' => true,
+            'message' => 'Produit supprimé définitivement.',
+            'data' => null,
+        ]);
     }
 
     /** PUT /api/admin/produits/{id}/stock */
@@ -228,6 +240,10 @@ class ProduitController extends Controller
             ]);
         }
 
-        return response()->json(['success' => true, 'data' => $stock->fresh()]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Stock updated successfully.',
+            'data' => $stock->fresh(),
+        ]);
     }
 }

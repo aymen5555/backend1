@@ -97,6 +97,7 @@ class ComplexeController extends Controller
             'website_url' => 'nullable|url|max:1000',
             'gallery_images' => 'nullable|array',
             'gallery_images.*' => 'nullable|url|max:1000',
+            'societe_id' => 'nullable|integer|exists:societes,id',
         ]);
 
         if ($validator->fails()) {
@@ -291,6 +292,7 @@ class ComplexeController extends Controller
             'website_url' => 'nullable|url|max:1000',
             'gallery_images' => 'nullable|array',
             'gallery_images.*' => 'nullable|url|max:1000',
+            'societe_id' => 'nullable|integer|exists:societes,id',
         ]);
 
         if ($validator->fails()) {
@@ -347,6 +349,41 @@ class ComplexeController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Complex deleted successfully.',
+        ]);
+    }
+
+    /** GET /admin/complexes/deleted — super_admin only */
+    public function listDeleted(): JsonResponse
+    {
+        $user = auth('api')->user();
+        if (! $user?->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
+        $deleted = Complexe::onlyTrashed()
+            ->withCount('terrains')
+            ->with(['owner:id,first_name,last_name,email'])
+            ->latest('deleted_at')
+            ->get();
+
+        return response()->json(['success' => true, 'data' => $deleted]);
+    }
+
+    /** POST /admin/complexes/{id}/restore — super_admin only */
+    public function restore(int $id): JsonResponse
+    {
+        $user = auth('api')->user();
+        if (! $user?->isAdmin()) {
+            return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
+        }
+
+        $complexe = Complexe::onlyTrashed()->findOrFail($id);
+        $complexe->restore();
+
+        return response()->json([
+            'success' => true,
+            'message' => "Complexe \"{$complexe->name}\" restauré avec succès.",
+            'data'    => $complexe->load(['terrains', 'images', 'owner:id,first_name,last_name,email']),
         ]);
     }
 

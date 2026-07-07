@@ -128,6 +128,11 @@ class User extends Authenticatable implements CanResetPasswordContract, JWTSubje
         return $this->hasMany(Reservation::class);
     }
 
+    public function reservationActivites(): HasMany
+    {
+        return $this->hasMany(ReservationActivite::class);
+    }
+
     public function abonnements(): HasMany
     {
         return $this->hasMany(Abonnement::class);

@@ -37,9 +37,13 @@ class ImageUploadController extends Controller
 
             return response()->json([
                 'success' => true,
-                'url' => url('/storage/'.$path),
+                'message' => 'Image uploaded successfully.',
+                'data' => [
+                    'url' => url('/storage/'.$path),
+                ],
             ]);
         } catch (\Exception $e) {
+            \Log::error('ImageUploadController error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }

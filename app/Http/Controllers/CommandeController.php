@@ -114,11 +114,20 @@ class CommandeController extends Controller
                     LigneCommande::create($ligne);
                 }
 
-                $commande->load('lignes.produit');
+                $commande->load(['lignes.produit', 'complexe.owner']);
 
                 $commande->lignes->each(function ($ligne) {
                     $ligne->produit_nom = $ligne->produit->nom;
                 });
+
+                // Notify complex owner (gérant)
+                $owner = $commande->complexe?->owner;
+                if ($owner) {
+                    $owner->notify(new \App\Notifications\OrderStatusChanged(
+                        $commande,
+                        "Nouvelle commande #{$commande->id} reçue d'un montant de {$montantTotal} TND."
+                    ));
+                }
 
                 return response()->json([
                     'success' => true,
@@ -267,17 +276,69 @@ class CommandeController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $commande->update(['statut' => $request->statut]);
+        $newStatut = $request->statut;
+        $oldStatut = $commande->statut;
 
-        return response()->json([
-            'success' => true,
-            'data' => $commande->fresh(),
-        ]);
+        return DB::transaction(function () use ($commande, $newStatut, $oldStatut) {
+            // Replenish stock only when transitioning INTO annulee from a non-cancelled state
+            if ($newStatut === 'annulee' && $oldStatut !== 'annulee') {
+                $commande->load('lignes');
+                foreach ($commande->lignes as $ligne) {
+                    $stock = Stock::where('produit_id', $ligne->produit_id)->lockForUpdate()->first();
+                    if ($stock) {
+                        $stock->increment('quantite_disponible', $ligne->quantite);
+                    }
+                }
+            }
+
+            // Re-decrement if transitioning OUT of annulee back to an active state
+            if ($oldStatut === 'annulee' && $newStatut !== 'annulee') {
+                $commande->load('lignes');
+                foreach ($commande->lignes as $ligne) {
+                    $stock = Stock::where('produit_id', $ligne->produit_id)->lockForUpdate()->first();
+                    if ($stock) {
+                        $stock->decrement('quantite_disponible', $ligne->quantite);
+                    }
+                }
+            }
+
+            $commande->update(['statut' => $newStatut]);
+
+            $commande->load(['user', 'complexe.owner']);
+
+            // Notify client of status change
+            if ($commande->user) {
+                $commande->user->notify(new \App\Notifications\OrderStatusChanged($commande));
+            }
+
+            // If marked delivered but unpaid, notify complex owner (gérant)
+            if ($newStatut === 'livree' && $commande->statut_paiement === 'non_paye') {
+                $owner = $commande->complexe?->owner;
+                if ($owner) {
+                    $owner->notify(new \App\Notifications\OrderStatusChanged(
+                        $commande,
+                        "Alerte : La commande #{$commande->id} a été livrée mais n'est pas encore payée. N'oubliez pas de confirmer le règlement."
+                    ));
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => $commande->fresh(),
+            ]);
+        });
     }
 
     public function confirmerPaiement(Request $request, Commande $commande): JsonResponse
     {
         $this->authorizeGerant($commande->complexe);
+
+        if ($commande->statut === 'annulee') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de payer une commande annulée.',
+            ], 422);
+        }
 
         $validator = Validator::make($request->all(), [
             'modalite_paiement' => 'required|in:especes,carte',
@@ -292,6 +353,14 @@ class CommandeController extends Controller
             'statut_paiement' => 'paye',
             'modalite_paiement' => $request->modalite_paiement,
         ]);
+
+        $commande->load('user');
+        if ($commande->user) {
+            $commande->user->notify(new \App\Notifications\OrderStatusChanged(
+                $commande,
+                "Le paiement de votre commande #{$commande->id} a été enregistré avec succès."
+            ));
+        }
 
         return response()->json([
             'success' => true,

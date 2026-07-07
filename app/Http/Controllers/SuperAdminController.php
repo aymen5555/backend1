@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\GerantWelcomeMail;
 use App\Models\AbonnementAdherent;
 use App\Models\Complexe;
 use App\Models\User;
@@ -9,6 +10,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 
@@ -116,6 +119,29 @@ class SuperAdminController extends Controller
             DB::commit();
 
             $gerant = $user->load('complexe:id,owner_id,name,description,address');
+
+            // Send welcome email with a password-reset link so the gérant
+            // can set their own password instead of using the admin-typed one.
+            try {
+                $resetToken = Password::createToken($user);
+                $resetUrl   = rtrim(env('FRONTEND_URL', 'http://localhost:4200'), '/')
+                    . '/auth/reset-password?token=' . urlencode($resetToken)
+                    . '&email=' . urlencode($user->email);
+
+                Mail::to($user->email)->send(
+                    new GerantWelcomeMail(
+                        gerant: $user,
+                        complexeName: $gerant->complexe?->name ?? 'your complex',
+                        resetUrl: $resetUrl,
+                    )
+                );
+            } catch (\Throwable $mailException) {
+                // Email failure must never roll back the created account.
+                \Log::warning('GerantWelcomeMail failed', [
+                    'gerant_id' => $user->id,
+                    'error'     => $mailException->getMessage(),
+                ]);
+            }
 
             return response()->json([
                 'success' => true,

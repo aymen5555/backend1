@@ -191,7 +191,7 @@ class TerrainController extends Controller
         }
 
         // Clients, guests, subscribers — only active
-        if ((! $user || $user->isClient()) && (! $terrain->is_active || ! $complexe->is_active)) {
+        if ((! $user || $user->isClient()) && (! $terrain->is_active || ! $complexe?->is_active)) {
             abort(response()->json([
                 'success' => false,
                 'message' => 'This court is not available.',

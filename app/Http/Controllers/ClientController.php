@@ -12,7 +12,7 @@ class ClientController extends Controller
 {
     public function index(): JsonResponse
     {
-        $user = auth()->user('api');
+        $user = auth('api')->user();
         $myComplexeIds = ($user && $user->role === 'gerant')
             ? Complexe::where('owner_id', $user->id)->pluck('id')
             : Complexe::pluck('id');
@@ -21,8 +21,12 @@ class ClientController extends Controller
         $query = User::query()->where('role', 'client');
 
         if ($user && $user->role === 'gerant') {
-            // Gerant: only return clients who actually have bookings on their complexes
-            $query->whereHas('reservations.terrain', fn ($c) => $c->whereIn('complexe_id', $myComplexeIds));
+            // Gerant: only return clients who actually have terrain bookings, activity bookings, or subscriptions on their complexes
+            $query->where(function ($q) use ($myComplexeIds) {
+                $q->whereHas('reservations.terrain', fn ($c) => $c->whereIn('complexe_id', $myComplexeIds))
+                  ->orWhereHas('reservationActivites.activite', fn ($c) => $c->whereIn('complexe_id', $myComplexeIds))
+                  ->orWhereHas('abonnementsAdherent', fn ($c) => $c->whereIn('complexe_id', $myComplexeIds));
+            });
         }
 
         $query->withCount([
@@ -37,12 +41,16 @@ class ClientController extends Controller
             ->get()
             ->map(fn (User $u) => $this->formatClient($u));
 
-        return response()->json(['success' => true, 'data' => $clients]);
+        return response()->json([
+            'success' => true,
+            'message' => 'Clients loaded successfully.',
+            'data' => $clients,
+        ]);
     }
 
     public function update(Request $request, User $client): JsonResponse
     {
-        $user = auth()->user('api');
+        $user = auth('api')->user();
         $myComplexeIds = ($user && $user->role === 'gerant')
             ? Complexe::where('owner_id', $user->id)->pluck('id')
             : Complexe::pluck('id');
@@ -74,12 +82,20 @@ class ClientController extends Controller
         }
 
         if ($user->role === 'gerant') {
-            // Check if this client actually has bookings on the gerant's complexes
-            $exists = $client->reservations()
+            // Check if this client actually has bookings or subscriptions on the gerant's complexes
+            $hasReservation = $client->reservations()
                 ->whereHas('terrain', fn ($c) => $c->whereIn('complexe_id', $myComplexeIds))
                 ->exists();
 
-            if (! $exists) {
+            $hasActivity = $client->reservationActivites()
+                ->whereHas('activite', fn ($c) => $c->whereIn('complexe_id', $myComplexeIds))
+                ->exists();
+
+            $hasAbonnement = $client->abonnementsAdherent()
+                ->whereIn('complexe_id', $myComplexeIds)
+                ->exists();
+
+            if (! $hasReservation && ! $hasActivity && ! $hasAbonnement) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden. This client does not belong to your complexes.',

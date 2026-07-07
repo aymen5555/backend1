@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\CategorieProduit;
 use App\Models\Complexe;
 use App\Models\FournisseurInterne;
+use App\Http\Middleware\EnsureGerantOwnsComplexe;
 use App\Models\Produit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Tests\TestCase;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -59,5 +61,49 @@ class GerantAssignAndBonTest extends TestCase
         $create->assertStatus(201);
 
         $this->assertDatabaseHas('stocks', ['produit_id' => $produit->id, 'quantite_disponible' => 7]);
+    }
+
+    public function test_gerant_cannot_access_product_from_another_complexe_without_explicit_complexe_scope()
+    {
+        $gerant = User::create(['first_name' => 'Gerant', 'last_name' => 'Two', 'email' => 'ger2@t.test', 'password' => bcrypt('secret'), 'role' => 'gerant']);
+        Complexe::create(['owner_id' => $gerant->id, 'name' => 'Owned', 'address' => 'Owned Addr']);
+        $otherComplexe = Complexe::create(['owner_id' => null, 'name' => 'Other', 'address' => 'Other Addr']);
+        $category = CategorieProduit::create(['nom' => 'Cat']);
+        $product = Produit::create([
+            'categorie_id' => $category->id,
+            'complexe_id' => $otherComplexe->id,
+            'nom' => 'Unauthorised Product',
+            'prix_achat' => 10,
+            'prix' => 20,
+            'sport_cible' => 'general',
+            'niveau_cible' => 'tous',
+        ]);
+
+        auth('api')->setUser($gerant);
+
+        $request = Request::create('/test-guard/'.$product->id, 'PATCH');
+        $request->setRouteResolver(function () use ($product) {
+            return new class($product) {
+                public function __construct(private readonly Produit $product) {}
+
+                public function parameter(string $name): mixed
+                {
+                    return $name === 'produit' ? $this->product : null;
+                }
+
+                public function parameters(): array
+                {
+                    return ['produit' => $this->product];
+                }
+            };
+        });
+
+        $middleware = new EnsureGerantOwnsComplexe();
+        $response = $middleware->handle($request, function () {
+            return response()->json(['success' => true]);
+        });
+
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertSame('You are not authorized for this complexe.', json_decode($response->getContent(), true)['message']);
     }
 }

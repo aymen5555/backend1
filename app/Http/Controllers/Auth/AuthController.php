@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Complexe;
 use App\Models\User;
+use App\Notifications\NewUserRegistered;
 use App\Services\EmailVerificationService;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
@@ -124,14 +125,31 @@ class AuthController extends Controller
             throw $exception;
         }
 
-        $plainToken = $this->emailVerification->issueAndSend($user);
+        try {
+            $superAdmins = User::where('role', 'super_admin')->get();
+            foreach ($superAdmins as $superAdmin) {
+                $superAdmin->notify(new NewUserRegistered($user));
+            }
+        } catch (\Throwable $notificationException) {
+            report($notificationException);
+        }
+
+        $plainToken = null;
+        $verificationSent = true;
+
+        try {
+            $plainToken = $this->emailVerification->issueAndSend($user);
+        } catch (\Throwable $exception) {
+            report($exception);
+            $verificationSent = false;
+        }
 
         $data = [
             'user' => $this->formatUser($user),
-            'verification_sent' => true,
+            'verification_sent' => $verificationSent,
         ];
 
-        if ($this->shouldExposeLocalVerificationLink()) {
+        if ($plainToken && $this->shouldExposeLocalVerificationLink()) {
             $data['verification_url'] = $this->emailVerification->verificationUrl($plainToken);
         }
 
@@ -276,6 +294,11 @@ class AuthController extends Controller
             ], 403);
         }
 
+        // Eager-load complexe for gerant so the frontend knows their assigned complex immediately after login
+        if ($user->role === 'gerant') {
+            $user->load('complexe');
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Signed in successfully.',
@@ -369,6 +392,7 @@ class AuthController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Signed out successfully.',
+            'data' => null,
         ]);
     }
 
@@ -388,6 +412,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Token refreshed successfully.',
             'data' => [
                 'token' => $newToken,
                 'token_type' => 'bearer',
@@ -409,6 +434,7 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Profile loaded successfully.',
             'data' => ['user' => $this->formatUser($user)],
         ]);
     }

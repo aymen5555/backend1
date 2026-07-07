@@ -115,7 +115,7 @@ class AbonnementAdherentController extends Controller
     public function cancel($id): JsonResponse
     {
         $user = auth('api')->user();
-        $sub = AbonnementAdherent::with('complexe')->findOrFail($id);
+        $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
 
         // Verify ownership
         if ($sub->user_id !== $user->id) {
@@ -129,6 +129,10 @@ class AbonnementAdherentController extends Controller
 
         $sub->update(['statut' => 'annule']);
 
+        if ($sub->user) {
+            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub));
+        }
+
         return response()->json(['success' => true, 'message' => 'Abonnement annulé.']);
     }
 
@@ -138,7 +142,7 @@ class AbonnementAdherentController extends Controller
     public function pay(Request $request, $id): JsonResponse
     {
         $user = auth('api')->user();
-        $sub = AbonnementAdherent::with('complexe')->findOrFail($id);
+        $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
 
         // Verify ownership
         if ($sub->user_id !== $user->id) {
@@ -173,6 +177,10 @@ class AbonnementAdherentController extends Controller
             'statut' => 'actif',
             'reste_a_payer' => 0,
         ]);
+
+        if ($sub->user) {
+            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub, "Le paiement de votre abonnement " . ($sub->typeAbonnement?->nom ?? 'Adhérent') . " a été enregistré avec succès."));
+        }
 
         return response()->json(['success' => true, 'message' => 'Paiement effectué.', 'data' => $sub->fresh()]);
     }
@@ -209,6 +217,19 @@ class AbonnementAdherentController extends Controller
             $query = TypeAbonnementAdherent::query();
             if ($user->isGerant()) {
                 $query->whereHas('complexe', fn ($q) => $q->where('owner_id', $user->id));
+            } else {
+                $req = request();
+                if ($req->filled('complexe_id')) {
+                    $validator = Validator::make($req->all(), [
+                        'complexe_id' => 'exists:complexes,id',
+                    ]);
+
+                    if ($validator->fails()) {
+                        return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+                    }
+
+                    $query->where('complexe_id', $req->complexe_id);
+                }
             }
 
             $types = $query->with('complexe')
@@ -330,12 +351,12 @@ class AbonnementAdherentController extends Controller
         }
 
         $type = TypeAbonnementAdherent::findOrFail($id);
-        if ($user->isGerant() && $type->complexe->owner_id !== $user->id) {
+        if ($user->isGerant() && $type->complexe?->owner_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        // Real delete only if there are no dependencies
-        if ($type->abonnements()->exists() || $type->detailsAbonnements()->exists()) {
+        // Real delete only if there are no dependencies (including soft-deleted/cancelled subscriptions)
+        if ($type->abonnements()->withTrashed()->exists() || $type->detailsAbonnements()->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Impossible de supprimer cette formule car des adhérents y sont abonnés ou elle possède des détails d\'abonnement liés. Désactivez-la à la place.',
@@ -359,8 +380,31 @@ class AbonnementAdherentController extends Controller
             }
 
             $query = AbonnementAdherent::with(['user', 'typeAbonnement.complexe', 'complexe', 'reglements']);
+
+            // Gerant: always scope to their complexe (defensive and deterministic)
             if ($user->isGerant()) {
-                $query->whereHas('complexe', fn ($q) => $q->where('owner_id', $user->id));
+                $complexeId = Complexe::where('owner_id', $user->id)->value('id');
+
+                // Gérant without an assigned complexe → return empty list
+                if (! $complexeId) {
+                    return response()->json(['success' => true, 'data' => [], 'count' => 0]);
+                }
+
+                $query->where('complexe_id', $complexeId);
+            } else {
+                // Superadmin: optional filtering by `complexe_id` query param
+                $req = request();
+                if ($req->filled('complexe_id')) {
+                    $validator = Validator::make($req->all(), [
+                        'complexe_id' => 'exists:complexes,id',
+                    ]);
+
+                    if ($validator->fails()) {
+                        return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+                    }
+
+                    $query->where('complexe_id', $req->complexe_id);
+                }
             }
 
             $subs = $query->orderByDesc('date_debut')->get();
@@ -452,8 +496,8 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        $sub = AbonnementAdherent::with('complexe')->findOrFail($id);
-        if ($user->isGerant() && $sub->complexe->owner_id !== $user->id) {
+        $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
+        if ($user->isGerant() && $sub->complexe?->owner_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -482,6 +526,10 @@ class AbonnementAdherentController extends Controller
             'reste_a_payer' => 0,
         ]);
 
+        if ($sub->user) {
+            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub, "Le paiement de votre abonnement " . ($sub->typeAbonnement?->nom ?? 'Adhérent') . " a été enregistré avec succès."));
+        }
+
         return response()->json(['success' => true, 'message' => 'Paiement confirmé.', 'data' => $sub->fresh()]);
     }
 
@@ -492,12 +540,16 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        $sub = AbonnementAdherent::with('complexe')->findOrFail($id);
-        if ($user->isGerant() && $sub->complexe->owner_id !== $user->id) {
+        $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
+        if ($user->isGerant() && $sub->complexe?->owner_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
         $sub->update(['statut' => 'annule']);
+
+        if ($sub->user) {
+            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub));
+        }
 
         return response()->json(['success' => true, 'message' => 'Abonnement annulé.']);
     }
@@ -510,7 +562,7 @@ class AbonnementAdherentController extends Controller
         }
 
         $sub = AbonnementAdherent::with(['complexe', 'reglements'])->findOrFail($id);
-        if ($user->isGerant() && $sub->complexe->owner_id !== $user->id) {
+        if ($user->isGerant() && $sub->complexe?->owner_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -518,16 +570,9 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Impossible de supprimer un abonnement actif.'], 422);
         }
 
-        // Preserve accounting trace if any payment was ever recorded
-        $hasPayment = $sub->paye || $sub->reglements()->count() > 0;
-
-        if ($hasPayment) {
-            $sub->delete(); // soft-delete — trace comptable préservée
-            $message = 'Abonnement archivé (supprimé de l\'affichage).';
-        } else {
-            $sub->forceDelete(); // aucun paiement, suppression réelle
-            $message = 'Abonnement supprimé définitivement.';
-        }
+        // Always soft-delete to preserve audit trail — even unpaid subscriptions show in archives
+        $sub->delete();
+        $message = 'Abonnement archivé (supprimé de l\'affichage).';
 
         return response()->json(['success' => true, 'message' => $message]);
     }

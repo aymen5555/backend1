@@ -500,19 +500,12 @@ class ActiviteController extends Controller
             ], 422);
         }
 
-        $hasPayment = $reservation->statut_paiement === 'paye';
-
-        if ($hasPayment) {
-            $reservation->delete();
-            $message = 'Réservation d\'activité archivée (supprimée de l\'affichage).';
-        } else {
-            $reservation->forceDelete();
-            $message = 'Réservation d\'activité supprimée définitivement.';
-        }
+        // Always soft-delete to preserve audit trail — appears in archives
+        $reservation->delete();
 
         return response()->json([
             'success' => true,
-            'message' => $message,
+            'message' => 'Réservation d\'activité archivée (supprimée de l\'affichage).',
         ]);
     }
 

@@ -94,16 +94,14 @@ class CategorieProduitController extends Controller
         ]);
     }
 
-    /** DELETE /api/admin/categories-produits/{id} */
     public function destroy(CategorieProduit $categorie): JsonResponse
     {
-        if ($categorie->produits()->count() > 0) {
-            $categorie->update(['active' => false]);
-
+        $count = $categorie->produits()->count();
+        if ($count > 0) {
             return response()->json([
-                'success' => true,
-                'message' => 'Catégorie associée à des produits : elle a été désactivée au lieu d\'être supprimée.',
-            ]);
+                'success' => false,
+                'message' => "Impossible de supprimer : {$count} produit(s) utilisent cette catégorie.",
+            ], 422);
         }
 
         $categorie->delete();

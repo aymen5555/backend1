@@ -16,9 +16,19 @@ class UpdateAbonnementsAdherentStatus extends Command
     {
         $today = Carbon::today()->toDateString();
 
-        $count = AbonnementAdherent::where('statut', 'actif')
+        $expiringAbonnements = AbonnementAdherent::with(['user', 'complexe', 'typeAbonnement'])
+            ->where('statut', 'actif')
             ->where('date_fin', '<', $today)
-            ->update(['statut' => 'expire']);
+            ->get();
+
+        $count = 0;
+        foreach ($expiringAbonnements as $sub) {
+            $sub->update(['statut' => 'expire']);
+            $count++;
+            if ($sub->user) {
+                $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub));
+            }
+        }
 
         $this->info("Updated {$count} expired adhérent subscription(s).");
 

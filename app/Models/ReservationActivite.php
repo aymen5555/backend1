@@ -43,15 +43,17 @@ class ReservationActivite extends Model
         $todayStr = $now->toDateString();
         $timeStr = $now->toTimeString();
 
+        // Activity reservations do not currently support a separate expired status.
+        // Past reserved sessions remain in their original status for display logic.
         self::where('statut', 'reservee')
             ->where('date_seance', '<', $todayStr)
-            ->update(['statut' => 'expiree']);
+            ->update(['statut' => 'reservee']);
 
         self::where('statut', 'reservee')
             ->where('date_seance', '=', $todayStr)
             ->whereHas('activite', function ($query) use ($timeStr) {
                 $query->where('heure_debut', '<', $timeStr);
             })
-            ->update(['statut' => 'expiree']);
+            ->update(['statut' => 'reservee']);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Mail\VerifyEmailMail;
 use App\Models\EmailVerificationToken;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -27,7 +28,17 @@ class EmailVerificationService
 
         $verifyUrl = $this->verificationUrl($plainToken);
 
-        Mail::to($user->email)->send(new VerifyEmailMail($user, $verifyUrl));
+        try {
+            Mail::to($user->email)->send(new VerifyEmailMail($user, $verifyUrl));
+        } catch (\Throwable $exception) {
+            Log::warning('Verification email could not be sent.', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        }
 
         return $plainToken;
     }

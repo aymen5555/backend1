@@ -92,7 +92,7 @@ Route::get('categories-produits', [CategorieProduitController::class, 'index']);
 Route::middleware('auth:api')->group(function () {
 
     // Complexes — GERANT & SUPER_ADMIN manage
-    Route::middleware('role:super_admin,gerant')->group(function () {
+    Route::middleware(['role:super_admin,gerant', \App\Http\Middleware\EnsureGerantOwnsComplexe::class])->group(function () {
         Route::post('admin/upload-image', [ImageUploadController::class, 'upload']);
         Route::post('complexes', [ComplexeController::class, 'store']);
         Route::put(COMPLEXE_ROUTE, [ComplexeController::class, 'update']);
@@ -101,7 +101,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // Courts — GERANT & SUPER_ADMIN manage
-    Route::middleware('role:super_admin,gerant')->group(function () {
+    Route::middleware(['role:super_admin,gerant', \App\Http\Middleware\EnsureGerantOwnsComplexe::class])->group(function () {
         Route::post('terrains', [TerrainController::class, 'store']);
         Route::put(TERRAIN_ROUTE, [TerrainController::class, 'update']);
         Route::patch(TERRAIN_ROUTE, [TerrainController::class, 'update']);
@@ -119,7 +119,7 @@ Route::middleware('auth:api')->group(function () {
     Route::delete(RESERVATION_ROUTE, [ReservationController::class, 'destroy']);
 
     // Clients — GERANT & SUPER_ADMIN
-    Route::middleware('role:super_admin,gerant')->group(function () {
+    Route::middleware(['role:super_admin,gerant', \App\Http\Middleware\EnsureGerantOwnsComplexe::class])->group(function () {
         Route::get('clients', [ClientController::class, 'index']);
         Route::patch('clients/{client}', [ClientController::class, 'update']);
 
@@ -138,6 +138,9 @@ Route::middleware('auth:api')->group(function () {
     // Notifications
     Route::get('notifications', [\App\Http\Controllers\NotificationController::class, 'index']);
     Route::put('notifications/mark-read', [\App\Http\Controllers\NotificationController::class, 'markRead']);
+    Route::put('notifications/mark-all-read', [\App\Http\Controllers\NotificationController::class, 'markAllRead']);
+    Route::delete('notifications/{id}', [\App\Http\Controllers\NotificationController::class, 'destroy']);
+
 
     // Fitness Profile
     Route::get('profile-fitness', [ProfilFitnessController::class, 'show']);
@@ -168,15 +171,10 @@ Route::middleware('auth:api')->group(function () {
     Route::put('abonnement-adherents/{id}/pay', [AbonnementAdherentController::class, 'pay']);
     Route::delete('abonnement-adherents/{id}', [AbonnementAdherentController::class, 'destroy']);
 
-    // Legacy subscription management — DISABLED (replaced by AbonnementAdherentController)
-    // Route::get('abonnements', [AbonnementController::class, 'index']);
-    // Route::get('abonnements/{abonnement}', [AbonnementController::class, 'show']);
-    // Route::post('abonnements', [AbonnementController::class, 'store']);
-    // Route::put('abonnements/{abonnement}/confirm-payment', [AbonnementController::class, 'confirmPayment']);
-    // Route::put('abonnements/{abonnement}/cancel', [AbonnementController::class, 'cancel']);
+
 
     // Gerant / Super admin routes for managing subscription types & subscriptions
-    Route::middleware('role:super_admin,gerant')->group(function () {
+    Route::middleware(['role:super_admin,gerant', \App\Http\Middleware\EnsureGerantOwnsComplexe::class])->group(function () {
         Route::get('admin/abonnements/types', [AbonnementAdherentController::class, 'adminTypes']);
         Route::post('admin/abonnements/types', [AbonnementAdherentController::class, 'adminStoreType']);
         Route::put('admin/abonnements/types/{id}', [AbonnementAdherentController::class, 'adminUpdateType']);
@@ -203,7 +201,7 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('mes-commandes/{commande}/annuler', [CommandeController::class, 'annuler']);
 
     // ── Products & Shop GERANT + SUPER_ADMIN ───────────────────────────────────
-    Route::middleware('role:super_admin,gerant')->group(function () {
+    Route::middleware(['role:super_admin,gerant', \App\Http\Middleware\EnsureGerantOwnsComplexe::class])->group(function () {
         Route::get('admin/produits', [ProduitController::class, 'adminIndex']);
         Route::post('admin/produits', [ProduitController::class, 'store']);
         Route::put('admin/produits/{produit}', [ProduitController::class, 'update']);
@@ -246,6 +244,7 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('admin/categories-produits/{categorie}', [CategorieProduitController::class, 'destroy']);
         Route::apiResource('admin/societes', SocieteController::class);
         Route::apiResource('admin/societes/{societe}/dirigeants', DirigeantController::class)->only(['index', 'store', 'destroy']);
+        Route::get('admin/equipements/complexes/{complexe}', [EquipementController::class, 'complexeEquipements']);
         Route::apiResource('admin/equipements', EquipementController::class);
         Route::post('admin/equipements/{equipement}/complexes', [EquipementController::class, 'toggleComplexe']);
         Route::apiResource('admin/details-abonnements', DetailAbonnementController::class)->only(['index', 'store', 'destroy']);
@@ -256,7 +255,7 @@ Route::middleware('auth:api')->group(function () {
     });
 
     // ── Galerie GERANT & SUPER_ADMIN ──────────────────────────────────────────
-    Route::middleware('role:super_admin,gerant')->group(function () {
+    Route::middleware(['role:super_admin,gerant', \App\Http\Middleware\EnsureGerantOwnsComplexe::class])->group(function () {
         Route::get('admin/galeries/{complexe}', [GalerieController::class, 'index']);
         Route::post('admin/galeries/{complexe}', [GalerieController::class, 'store']);
         Route::delete('admin/galeries/{complexe}/{galerie}', [GalerieController::class, 'destroy']);
@@ -287,5 +286,9 @@ Route::middleware('auth:api')->group(function () {
         Route::post('admin/gerants/{gerant}/activate', [SuperAdminController::class, 'activateGerant']);
         Route::put('admin/gerants/{gerant}/complexe', [SuperAdminController::class, 'assignComplexe']);
         Route::delete('admin/gerants/{gerant}', [SuperAdminController::class, 'deleteGerant']);
+
+        // Soft-deleted complexes management
+        Route::get('admin/complexes/deleted', [ComplexeController::class, 'listDeleted']);
+        Route::post('admin/complexes/{id}/restore', [ComplexeController::class, 'restore']);
     });
 });

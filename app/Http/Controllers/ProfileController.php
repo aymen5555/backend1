@@ -73,7 +73,7 @@ class ProfileController extends Controller
 
     private function formatUser(User $user): array
     {
-        return [
+        $data = [
             'id' => $user->id,
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
@@ -88,5 +88,18 @@ class ProfileController extends Controller
             'image_url' => $user->image_url,
             'created_at' => $user->created_at,
         ];
+
+        if ($user->role === 'gerant') {
+            if (! $user->relationLoaded('complexe')) {
+                $user->load('complexe');
+            }
+            $data['complexe_id'] = $user->complexe?->id;
+            $data['complexe'] = $user->complexe ? [
+                'id' => $user->complexe->id,
+                'name' => $user->complexe->name,
+            ] : null;
+        }
+
+        return $data;
     }
 }

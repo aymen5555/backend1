@@ -13,6 +13,7 @@ use App\Services\ReservationLockService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
@@ -35,7 +36,7 @@ class ReservationController extends Controller
 
         $query = Reservation::with(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']);
 
-        if ($user->isClient()) {
+        if ($user->isClient() || $request->boolean('mine')) {
             $query->where('user_id', $user->id);
         } else {
             $query->whereHas('terrain', fn ($q) => $q->whereIn('complexe_id', $myComplexeIds));
@@ -51,6 +52,7 @@ class ReservationController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Reservations loaded successfully.',
             'data' => $query->latest('start_at')->get(),
         ]);
     }
@@ -75,7 +77,7 @@ class ReservationController extends Controller
 
         $terrain = Terrain::with('complexe')->findOrFail($request->terrain_id);
 
-        if (! $terrain->is_active || ! $terrain->complexe->is_active) {
+        if (! $terrain->is_active || ! $terrain->complexe?->is_active) {
             return response()->json([
                 'success' => false,
                 'message' => 'This court is not available for booking.',
@@ -131,11 +133,16 @@ class ReservationController extends Controller
                 'montant_paye' => $prix,
             ]);
 
+            // Notify complex owner (gérant)
+            $owner = $terrain->complexe?->owner;
+            if ($owner) {
+                $owner->notify(new \App\Notifications\NewReservationCreated($reservation));
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Reservation created successfully.',
                 'data' => $reservation->load(['terrain.complexe', 'user:id,first_name,last_name,email']),
-                'montant_a_payer' => $prix,
             ], 201);
         });
 
@@ -155,6 +162,7 @@ class ReservationController extends Controller
 
         return response()->json([
             'success' => true,
+            'message' => 'Reservation loaded successfully.',
             'data' => $reservation->load(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']),
         ]);
     }
@@ -194,7 +202,7 @@ class ReservationController extends Controller
 
             $terrain = Terrain::with('complexe')->findOrFail($reservation->terrain_id);
 
-            if (! $terrain->is_active || ! $terrain->complexe->is_active) {
+            if (! $terrain->is_active || ! $terrain->complexe?->is_active) {
                 return response()->json([
                     'success' => false,
                     'message' => 'This court is not available for booking.',
@@ -241,124 +249,128 @@ class ReservationController extends Controller
 
         $isForce = $request->boolean('force');
 
-        if (! in_array($reservation->status, ['pending', 'confirmed', 'expired', 'played'], true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Only active bookings can be cancelled.',
-            ], 422);
-        }
+        return DB::transaction(function () use ($reservation, $isForce): JsonResponse {
+            $fresh = Reservation::lockForUpdate()->find($reservation->id);
 
-        $user = JWTAuth::user();
-        $isPaid = $reservation->statut_paiement === 'paye' && $reservation->montant_paye > 0;
-        $montant = $reservation->montant_paye ?? 0;
-
-        if ($reservation->modalite_paiement === 'carte' && 
-            $reservation->statut_paiement === 'non_paye') {
-            $reservation->update(['status' => 'cancelled']);
-            return response()->json([
-                'success' => true,
-                'message' => 'Réservation annulée — paiement non effectué.'
-            ]);
-        }
-
-        // Clients cannot cancel within 2 hours of start time
-        // GERANT and SUPER_ADMIN can always cancel
-        if (! $isForce && ! $user->isGerantOrAdmin()) {
-            $startAt = Carbon::parse($reservation->start_at)->setTimezone(config('app.timezone'));
-            $now = Carbon::now(config('app.timezone'));
-
-            if ($now->gte($startAt)) {
+            if (! in_array($fresh->status, ['pending', 'confirmed', 'expired', 'played'], true)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Cannot cancel a reservation that has already started.',
-                ], 422);
+                    'message' => 'Cette réservation est déjà annulée.',
+                ], 409);
             }
 
-            if (abs($startAt->diffInHours($now, false)) < 2) {
+            $user = JWTAuth::user();
+            $isPaid = $fresh->statut_paiement === 'paye' && $fresh->montant_paye > 0;
+            $montant = $fresh->montant_paye ?? 0;
+
+            if ($fresh->modalite_paiement === 'carte' && $fresh->statut_paiement === 'non_paye') {
+                $fresh->update(['status' => 'cancelled']);
+
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Annulation impossible moins de 2h avant le début',
-                ], 422);
+                    'success' => true,
+                    'message' => 'Réservation annulée — paiement non effectué.',
+                    'data' => null,
+                ]);
             }
-        }
 
-        if ($isPaid) {
-            ReglementReservation::create([
-                'reservation_id' => $reservation->id,
-                'type' => 'remboursement',
-                'montant' => $montant,
-                'reference' => 'CANCEL-'.$reservation->id.'-'.now()->format('Ymd'),
+            if (! $isForce && ! $user->isGerantOrAdmin()) {
+                $startAt = Carbon::parse($fresh->start_at)->setTimezone(config('app.timezone'));
+                $now = Carbon::now(config('app.timezone'));
+
+                if ($now->gte($startAt)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Cannot cancel a reservation that has already started.',
+                    ], 422);
+                }
+
+                if (abs($startAt->diffInHours($now, false)) < 2) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Annulation impossible moins de 2h avant le début',
+                    ], 422);
+                }
+            }
+
+            if ($isPaid) {
+                ReglementReservation::create([
+                    'reservation_id' => $fresh->id,
+                    'type' => 'remboursement',
+                    'montant' => $montant,
+                    'reference' => 'CANCEL-'.$fresh->id.'-'.now()->format('Ymd'),
+                ]);
+            }
+
+            $fresh->update([
+                'status' => 'cancelled',
+                'statut_paiement' => $isPaid ? 'rembourse' : $fresh->statut_paiement,
             ]);
-        }
 
-        $reservation->update([
-            'status' => 'cancelled',
-            'statut_paiement' => $isPaid ? 'rembourse' : $reservation->statut_paiement,
-        ]);
-
-        if ($isPaid) {
             return response()->json([
                 'success' => true,
-                'message' => "Réservation annulée. Remboursement de {$montant} DT initié.",
+                'message' => $isPaid
+                    ? "Réservation annulée. Remboursement de {$montant} DT initié."
+                    : 'Reservation cancelled successfully.',
+                'data' => $fresh->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']),
             ]);
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Reservation cancelled successfully.',
-        ]);
+        });
     }
 
     public function pay(Request $request, Reservation $reservation): JsonResponse
     {
         $this->authorizeAccess($reservation);
 
-        if ($reservation->statut_paiement === 'paye' || $reservation->statut_paiement === 'rembourse') {
+        return DB::transaction(function () use ($reservation, $request): JsonResponse {
+            $fresh = Reservation::lockForUpdate()->find($reservation->id);
+
+            if ($fresh->statut_paiement === 'paye') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cette réservation est déjà payée.',
+                ], 422);
+            }
+
+            if ($fresh->status !== 'pending') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Seules les réservations en attente peuvent être payées',
+                ], 422);
+            }
+
+            if ($fresh->modalite_paiement !== 'carte') {
+                return response()->json(['success' => false, 'message' => 'Cette réservation n\'admet pas de paiement en ligne'], 422);
+            }
+
+            $client = User::find($fresh->user_id);
+            $complexeId = $fresh->terrain->complexe_id;
+            $montant = $this->pricing->calculate(
+                $fresh->terrain->price_per_hour ?? 0,
+                Carbon::parse($fresh->start_at),
+                Carbon::parse($fresh->end_at),
+                $client,
+                $complexeId
+            );
+
+            $fresh->update([
+                'status' => 'confirmed',
+                'statut_paiement' => 'paye',
+                'montant_paye' => $montant,
+                'reference_paiement' => $request->reference_paiement ?? null,
+            ]);
+
+            ReglementReservation::create([
+                'reservation_id' => $fresh->id,
+                'type' => 'paiement',
+                'montant' => $montant,
+                'reference' => $request->reference_paiement ?? null,
+            ]);
+
             return response()->json([
-                'success' => false,
-                'message' => 'Action impossible sur cette réservation',
-            ], 422);
-        }
-
-        if ($reservation->status !== 'pending') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Seules les réservations en attente peuvent être payées',
-            ], 422);
-        }
-
-        if ($reservation->modalite_paiement !== 'carte') {
-            return response()->json(['success' => false, 'message' => 'Cette réservation n\'admet pas de paiement en ligne'], 422);
-        }
-
-        $client = User::find($reservation->user_id);
-        $complexeId = $reservation->terrain->complexe_id;
-        $montant = $this->pricing->calculate(
-            $reservation->terrain->price_per_hour ?? 0,
-            Carbon::parse($reservation->start_at),
-            Carbon::parse($reservation->end_at),
-            $client,
-            $complexeId
-        );
-
-        $reservation->update([
-            'status' => 'confirmed',
-            'statut_paiement' => 'paye',
-            'montant_paye' => $montant,
-        ]);
-
-        ReglementReservation::create([
-            'reservation_id' => $reservation->id,
-            'type' => 'paiement',
-            'montant' => $montant,
-            'reference' => $request->reference_paiement ?? null,
-        ]);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Payment processed successfully.',
-            'data' => $reservation->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email']),
-        ]);
+                'success' => true,
+                'message' => 'Payment processed successfully.',
+                'data' => $fresh->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email']),
+            ]);
+        });
     }
 
     public function destroy(Reservation $reservation): JsonResponse
@@ -378,6 +390,7 @@ class ReservationController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Réservation archivée.',
+            'data' => null,
         ]);
     }
 

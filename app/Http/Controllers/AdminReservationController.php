@@ -50,9 +50,15 @@ class AdminReservationController extends Controller
             ], 422);
         }
 
-        // Check terrain belongs to this gerant/admin
         $terrain = Terrain::with('complexe')->findOrFail($request->terrain_id);
         $complexe = $terrain->complexe;
+
+        if (! $complexe) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This court is not available for booking.',
+            ], 422);
+        }
 
         if (! $user->isAdmin() && $complexe->owner_id !== $user->id) {
             return response()->json([
@@ -152,6 +158,13 @@ class AdminReservationController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Cette réservation n\'admet pas de paiement en espèces.',
+            ], 422);
+        }
+
+        if (in_array($reservation->status, ['cancelled', 'expired', 'played'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de confirmer le paiement pour cette réservation.',
             ], 422);
         }
 
@@ -281,6 +294,13 @@ class AdminReservationController extends Controller
             ], 422);
         }
 
+        if (in_array($reservation->status, ['cancelled', 'expired', 'played'], true)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Impossible de confirmer le paiement pour cette réservation.',
+            ], 422);
+        }
+
         if ($reservation->statut_paiement !== 'non_paye') {
             return response()->json([
                 'success' => false,
@@ -361,9 +381,15 @@ class AdminReservationController extends Controller
         }
 
         // 1. Terrain Reservations Archives
-        $resQuery = Reservation::onlyTrashed()->with(['user:id,first_name,last_name,email', 'terrain.complexe']);
+        // Load terrain/complexe normally (they do not use SoftDeletes)
+        $resQuery = Reservation::onlyTrashed()->with([
+            'user:id,first_name,last_name,email',
+            'terrain.complexe',
+        ]);
         if (! $user->isAdmin()) {
-            $resQuery->whereHas('terrain.complexe', fn ($q) => $q->where('owner_id', $user->id));
+            $userComplexeIds = \App\Models\Complexe::where('owner_id', $user->id)->pluck('id');
+            $terrainIds = \App\Models\Terrain::whereIn('complexe_id', $userComplexeIds)->pluck('id');
+            $resQuery->whereIn('terrain_id', $terrainIds);
         }
         $archivedReservations = $resQuery->get()->map(function ($r) {
             return [
@@ -383,9 +409,14 @@ class AdminReservationController extends Controller
         });
 
         // 2. Activite Reservations Archives
-        $actQuery = \App\Models\ReservationActivite::onlyTrashed()->with(['user:id,first_name,last_name,email', 'activite.complexe']);
+        $actQuery = \App\Models\ReservationActivite::onlyTrashed()->with([
+            'user:id,first_name,last_name,email',
+            'activite.complexe',
+        ]);
         if (! $user->isAdmin()) {
-            $actQuery->whereHas('activite.complexe', fn ($q) => $q->where('owner_id', $user->id));
+            $userComplexeIds = $userComplexeIds ?? \App\Models\Complexe::where('owner_id', $user->id)->pluck('id');
+            $activiteIds = \App\Models\Activite::whereIn('complexe_id', $userComplexeIds)->pluck('id');
+            $actQuery->whereIn('activite_id', $activiteIds);
         }
         $archivedActivites = $actQuery->get()->map(function ($r) {
             return [
@@ -405,9 +436,14 @@ class AdminReservationController extends Controller
         });
 
         // 3. Abonnements Archives
-        $abQuery = \App\Models\AbonnementAdherent::onlyTrashed()->with(['user:id,first_name,last_name,email', 'complexe', 'typeAbonnement']);
+        $abQuery = \App\Models\AbonnementAdherent::onlyTrashed()->with([
+            'user:id,first_name,last_name,email',
+            'complexe',
+            'typeAbonnement',
+        ]);
         if (! $user->isAdmin()) {
-            $abQuery->whereHas('complexe', fn ($q) => $q->where('owner_id', $user->id));
+            $userComplexeIds = $userComplexeIds ?? \App\Models\Complexe::where('owner_id', $user->id)->pluck('id');
+            $abQuery->whereIn('complexe_id', $userComplexeIds);
         }
         $archivedAbonnements = $abQuery->get()->map(function ($r) {
             return [
@@ -426,7 +462,39 @@ class AdminReservationController extends Controller
             ];
         });
 
-        $allArchives = $archivedReservations->concat($archivedActivites)->concat($archivedAbonnements)->sortByDesc('deleted_at')->values();
+        // 4. Depenses Archives
+        $depQuery = \App\Models\Depense::onlyTrashed()->with([
+            'typeDepense',
+            'complexe',
+            'creePar:id,first_name,last_name,email'
+        ]);
+        if (! $user->isAdmin()) {
+            $userComplexeIds = $userComplexeIds ?? \App\Models\Complexe::where('owner_id', $user->id)->pluck('id');
+            $depQuery->whereIn('complexe_id', $userComplexeIds);
+        }
+        $archivedDepenses = $depQuery->get()->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'type' => 'depense',
+                'type_label' => 'Dépense',
+                'client_name' => $r->creePar ? ($r->creePar->first_name . ' ' . $r->creePar->last_name) : 'N/A',
+                'client_email' => $r->creePar ? $r->creePar->email : 'N/A',
+                'complexe_name' => $r->complexe?->name ?? 'N/A',
+                'item_detail' => $r->typeDepense?->designation_ty_dep ?? 'Dépense',
+                'date' => $r->date_depense ? $r->date_depense->format('Y-m-d') : 'N/A',
+                'montant' => $r->montant_dep ?? 0,
+                'statut_precedental' => 'N/A',
+                'statut_paiement' => 'N/A',
+                'deleted_at' => $r->deleted_at?->toIso8601String(),
+            ];
+        });
+
+        $allArchives = $archivedReservations
+            ->concat($archivedActivites)
+            ->concat($archivedAbonnements)
+            ->concat($archivedDepenses)
+            ->sortByDesc('deleted_at')
+            ->values();
 
         return response()->json([
             'success' => true,

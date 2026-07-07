@@ -56,3 +56,33 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+---
+
+Local admin helper: assign complexes without an owner
+---------------------------------------------------
+
+If you have complexes with a null `owner_id` and you want to assign them to an existing user (for example a `super_admin` or a `gerant`), there is a convenience Artisan command:
+
+```bash
+php artisan complexes:assign-owner [--user-id=ID] [--email=EMAIL] [--dry-run] [--force]
+```
+
+- `--user-id` : assign to the user with this id.
+- `--email`   : assign to the user with this email.
+- `--dry-run` : list complexes that would be updated without making changes.
+- `--force`   : apply changes without confirmation prompt.
+
+Example: assign all unowned complexes to the first `super_admin` or `admin` found:
+
+```bash
+php artisan complexes:assign-owner
+```
+
+Example: dry-run and then apply to a specific email:
+
+```bash
+php artisan complexes:assign-owner --dry-run
+php artisan complexes:assign-owner --email=gerant@example.com --force
+```
+

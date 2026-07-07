@@ -32,4 +32,23 @@ class Stock extends Model
     {
         return $this->quantite_disponible <= $this->quantite_minimale;
     }
+
+    protected static function booted()
+    {
+        static::updated(function ($stock) {
+            if ($stock->alerteStock()) {
+                // Prevent duplicate notifications in same request
+                static $notified = [];
+                if (in_array($stock->id, $notified, true)) {
+                    return;
+                }
+                $notified[] = $stock->id;
+
+                $gerant = $stock->produit?->complexe?->owner;
+                if ($gerant) {
+                    $gerant->notify(new \App\Notifications\LowStockAlert($stock));
+                }
+            }
+        });
+    }
 }

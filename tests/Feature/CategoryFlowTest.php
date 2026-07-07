@@ -59,7 +59,7 @@ class CategoryFlowTest extends TestCase
             ->assertJsonCount(2, 'data');
     }
 
-    public function test_destroy_deactivates_category_if_has_products()
+    public function test_destroy_fails_if_category_has_products()
     {
         $token = $this->getSuperAdminToken();
 
@@ -88,11 +88,14 @@ class CategoryFlowTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->deleteJson("/api/admin/categories-produits/{$category->id}");
 
-        $response->assertStatus(200)
-            ->assertJson(['success' => true]);
+        $response->assertStatus(422)
+            ->assertJson([
+                'success' => false,
+                'message' => 'Impossible de supprimer : 1 produit(s) utilisent cette catégorie.'
+            ]);
 
         $category->refresh();
-        $this->assertFalse($category->active);
+        $this->assertTrue($category->active);
         $this->assertDatabaseHas('categorie_produits', ['id' => $category->id]);
     }
 

@@ -56,8 +56,9 @@ class EquipementController extends Controller
         return response()->json(['success' => true, 'message' => 'Équipement supprimé.']);
     }
 
-    public function toggleComplexe(Request $request, Equipement $equipement, $complexeId): JsonResponse
+    public function toggleComplexe(Request $request, Equipement $equipement, $complexeId = null): JsonResponse
     {
+        $complexeId = $complexeId ?? $request->input('complexe_id');
         $complexe = Complexe::findOrFail($complexeId);
         $attached = $complexe->equipements()->toggle($equipement->id);
 

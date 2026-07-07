@@ -9,11 +9,15 @@ use Illuminate\Support\Facades\Validator;
 
 class TypeDepenseController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $types = TypeDepense::orderBy('designation_ty_dep')->get();
+        $query = TypeDepense::orderBy('designation_ty_dep');
 
-        return response()->json(['success' => true, 'data' => $types]);
+        if ($request->boolean('active_only')) {
+            $query->where('active', true);
+        }
+
+        return response()->json(['success' => true, 'data' => $query->get()]);
     }
 
     public function store(Request $request): JsonResponse
@@ -43,13 +47,26 @@ class TypeDepenseController extends Controller
             return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
         }
 
-        $typeDepense->update($validator->validated());
+        $data = $validator->validated();
+        if ($request->has('active')) {
+            $data['active'] = filter_var($request->input('active'), FILTER_VALIDATE_BOOLEAN);
+        }
 
-        return response()->json(['success' => true, 'data' => $typeDepense]);
+        $typeDepense->update($data);
+
+        return response()->json(['success' => true, 'data' => $typeDepense->fresh()]);
     }
 
     public function destroy(TypeDepense $typeDepense): JsonResponse
     {
+        $count = $typeDepense->depenses()->count();
+        if ($count > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "Impossible de supprimer : ce type de dépense est utilisé par {$count} dépense(s). Désactivez-le à la place.",
+            ], 422);
+        }
+
         $typeDepense->delete();
 
         return response()->json(['success' => true, 'message' => 'Type de dépense supprimé.']);

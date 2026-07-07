@@ -11,7 +11,7 @@ class SocieteController extends Controller
 {
     public function index(): JsonResponse
     {
-        $societes = Societe::withCount('complexes')->orderBy('nom_soc')->get();
+        $societes = Societe::with('complexes')->withCount('complexes')->orderBy('nom_soc')->get();
 
         return response()->json(['success' => true, 'data' => $societes]);
     }

@@ -4,10 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Complexe extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'owner_id',
         'societe_id',
@@ -82,5 +86,10 @@ class Complexe extends Model
     public function images(): HasMany
     {
         return $this->hasMany(Galerie::class, 'complexe_id')->orderBy('ordre');
+    }
+
+    public function equipements(): BelongsToMany
+    {
+        return $this->belongsToMany(Equipement::class, 'complexe_equipement', 'complexe_id', 'equipement_id');
     }
 }
