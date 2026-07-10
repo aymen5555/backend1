@@ -186,7 +186,9 @@ class FixReservationConflicts extends Command
 
     protected function showSamples(array $arr, string $type): void
     {
-        if (count($arr) === 0) return;
+        if (count($arr) === 0) {
+            return;
+        }
         $this->line('--- Sample ' . $type . ' ---');
         $sample = array_slice($arr, 0, 5);
         foreach ($sample as $s) {
@@ -197,8 +199,12 @@ class FixReservationConflicts extends Command
     protected function chooseKeepReservation(array $r1, array $r2): array
     {
         // prefer confirmed
-        if (($r1['status'] ?? '') === 'confirmed' && ($r2['status'] ?? '') !== 'confirmed') return $r1;
-        if (($r2['status'] ?? '') === 'confirmed' && ($r1['status'] ?? '') !== 'confirmed') return $r2;
+        if (($r1['status'] ?? '') === 'confirmed' && ($r2['status'] ?? '') !== 'confirmed') {
+            return $r1;
+        }
+        if (($r2['status'] ?? '') === 'confirmed' && ($r1['status'] ?? '') !== 'confirmed') {
+            return $r2;
+        }
         // else choose earliest start
         $s1 = Carbon::parse($r1['start_at']);
         $s2 = Carbon::parse($r2['start_at']);
@@ -207,8 +213,12 @@ class FixReservationConflicts extends Command
 
     protected function chooseKeepActivityReservation(array $a1, array $a2): array
     {
-        if (($a1['statut'] ?? '') === 'confirmee' && ($a2['statut'] ?? '') !== 'confirmee') return $a1;
-        if (($a2['statut'] ?? '') === 'confirmee' && ($a1['statut'] ?? '') !== 'confirmee') return $a2;
+        if (($a1['statut'] ?? '') === 'confirmee' && ($a2['statut'] ?? '') !== 'confirmee') {
+            return $a1;
+        }
+        if (($a2['statut'] ?? '') === 'confirmee' && ($a1['statut'] ?? '') !== 'confirmee') {
+            return $a2;
+        }
         $s1 = Carbon::parse($a1['start_at']);
         $s2 = Carbon::parse($a2['start_at']);
         return $s1->lte($s2) ? $a1 : $a2;

@@ -11,7 +11,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 /**
  * Comprehensive Authorization Baseline Test
  *
- * SECURITY BASELINE: Verifies that CLIENT tokens CANNOT get 200 (success) 
+ * SECURITY BASELINE: Verifies that CLIENT tokens CANNOT get 200 (success)
  * on any /admin/* route. Status 403/404/405 are acceptable - they mean blocked.
  *
  * The key assertion: if a CLIENT ever gets 200 on an admin route, that's a SECURITY HOLE.
@@ -114,7 +114,9 @@ class ComprehensiveAdminAuthorizationTest extends TestCase
             $response = $this->withHeader('Authorization', "Bearer {$this->clientToken}")
                 ->getJson($route);
 
-            $this->assertNotEquals(200, $response->status(),
+            $this->assertNotEquals(
+                200,
+                $response->status(),
                 "SECURITY HOLE: CLIENT got 200 on {$route}. This should be 403/404/405."
             );
         }
@@ -128,7 +130,9 @@ class ComprehensiveAdminAuthorizationTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$this->gerantToken}")
             ->getJson('/api/admin/produits');
 
-        $this->assertEquals(200, $response->status(),
+        $this->assertEquals(
+            200,
+            $response->status(),
             "GERANT should get 200 on /api/admin/produits for their own complex"
         );
     }
@@ -141,7 +145,9 @@ class ComprehensiveAdminAuthorizationTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$this->superAdminToken}")
             ->getJson('/api/admin/produits');
 
-        $this->assertEquals(200, $response->status(),
+        $this->assertEquals(
+            200,
+            $response->status(),
             "SUPER_ADMIN should get 200 on /api/admin/produits"
         );
     }
@@ -153,7 +159,9 @@ class ComprehensiveAdminAuthorizationTest extends TestCase
     {
         $response = $this->getJson('/api/admin/produits');
 
-        $this->assertEquals(401, $response->status(),
+        $this->assertEquals(
+            401,
+            $response->status(),
             "Unauthenticated request to /api/admin/produits should return 401"
         );
     }

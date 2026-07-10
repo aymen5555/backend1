@@ -15,7 +15,9 @@ use function auth;
 
 class TerrainController extends Controller
 {
-    public function __construct(private readonly ReservationConflictService $conflicts) {}
+    public function __construct(private readonly ReservationConflictService $conflicts)
+    {
+    }
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [

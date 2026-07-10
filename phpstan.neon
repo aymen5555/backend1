@@ -1,0 +1,12 @@
+includes:
+    - vendor/nunomaduro/larastan/extension.neon
+
+parameters:
+    level: 7
+    paths:
+        - app
+        - tests
+    autoload_files:
+        - %rootDir%/../vendor/autoload.php
+    checkMissingIterableValueType: false
+    inferPrivatePropertyTypeFromConstructor: true

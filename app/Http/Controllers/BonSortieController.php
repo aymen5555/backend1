@@ -30,7 +30,7 @@ class BonSortieController extends Controller
     private function generateReference(int $complexeId, string $prefix): string
     {
         $year = date('Y');
-        $last = BonSortie::where('reference', 'like', $prefix.$year.'-%')
+        $last = BonSortie::where('reference', 'like', $prefix . $year . '-%')
             ->where('complexe_id', $complexeId)
             ->lockForUpdate()
             ->orderByDesc('reference')
@@ -45,7 +45,7 @@ class BonSortieController extends Controller
             }
         }
 
-        return $prefix.$year.'-'.str_pad($maxSeq + 1, 4, '0', STR_PAD_LEFT);
+        return $prefix . $year . '-' . str_pad($maxSeq + 1, 4, '0', STR_PAD_LEFT);
     }
 
     public function index(Request $request): JsonResponse
@@ -186,7 +186,7 @@ class BonSortieController extends Controller
     public function confirmerPaiement(Request $request, BonSortie $bonSortie): JsonResponse
     {
         $this->authorizeGerant($bonSortie->complexe_id);
-        
+
         $validator = Validator::make($request->all(), [
             'montant' => 'required|numeric|min:0.01',
             'type' => 'nullable|string',

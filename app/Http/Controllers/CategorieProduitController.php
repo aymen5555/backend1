@@ -72,7 +72,7 @@ class CategorieProduitController extends Controller
     public function update(Request $request, CategorieProduit $categorie): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'nom' => 'sometimes|string|max:255|unique:categorie_produits,nom,'.$categorie->id,
+            'nom' => 'sometimes|string|max:255|unique:categorie_produits,nom,' . $categorie->id,
             'description' => 'nullable|string',
             'active' => 'sometimes|boolean',
         ]);

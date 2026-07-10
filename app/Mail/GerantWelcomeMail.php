@@ -11,13 +11,15 @@ use Illuminate\Queue\SerializesModels;
 
 class GerantWelcomeMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable;
+    use SerializesModels;
 
     public function __construct(
         public User $gerant,
         public string $complexeName,
         public string $resetUrl,
-    ) {}
+    ) {
+    }
 
     public function envelope(): Envelope
     {

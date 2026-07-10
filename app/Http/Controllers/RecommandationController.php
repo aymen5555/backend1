@@ -12,7 +12,8 @@ class RecommandationController extends Controller
 {
     public function __construct(
         private readonly RecommandationService $recommandationSvc
-    ) {}
+    ) {
+    }
 
     /**
      * GET /api/recommendations

@@ -17,7 +17,7 @@ class EmailVerificationService
     {
         EmailVerificationToken::where('user_id', $user->id)->delete();
 
-        $plainToken = self::TOKEN_PREFIX.Str::random(48);
+        $plainToken = self::TOKEN_PREFIX . Str::random(48);
 
         EmailVerificationToken::create([
             'user_id' => $user->id,
@@ -46,7 +46,7 @@ class EmailVerificationService
     public function verificationUrl(string $plainToken): string
     {
         return rtrim(env('FRONTEND_URL', 'http://localhost:4200'), '/')
-            .'/auth/verify-email?token='.urlencode($plainToken);
+            . '/auth/verify-email?token=' . urlencode($plainToken);
     }
 
     public function verify(string $plainToken): ?User

@@ -46,7 +46,7 @@ class SubscriptionTypeSoftDeleteTest extends TestCase
         $this->actingAs($admin, 'api');
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->deleteJson('/api/admin/abonnements/types/'.$type->id);
+            ->deleteJson('/api/admin/abonnements/types/' . $type->id);
 
         $response->assertStatus(200)
             ->assertJson(['success' => true]);

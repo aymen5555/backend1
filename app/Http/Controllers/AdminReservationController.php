@@ -21,7 +21,8 @@ class AdminReservationController extends Controller
         private readonly ReservationConflictService $conflicts,
         private readonly ReservationLockService $locks,
         private readonly PricingService $pricing
-    ) {}
+    ) {
+    }
 
     public function manualStore(Request $request): JsonResponse
     {

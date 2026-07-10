@@ -68,7 +68,7 @@ class RefundAuthorizationTest extends TestCase
         ]);
 
         $adminToken = JWTAuth::fromUser($admin);
-        
+
         $response = $this->withHeader('Authorization', "Bearer {$adminToken}")
             ->putJson("/api/admin/abonnements-adherent/{$sub->id}/confirm-refund", []);
 

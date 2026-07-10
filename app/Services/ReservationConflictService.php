@@ -65,7 +65,9 @@ class ReservationConflictService
 
         foreach ($activityReservations as $ar) {
             $activite = $ar->activite;
-            if (! $activite || ! $ar->date_seance) continue;
+            if (! $activite || ! $ar->date_seance) {
+                continue;
+            }
 
             // If activity doesn't have heure_debut/heure_fin, treat as full-day and consider any overlap on that date
             if (empty($activite->heure_debut) || empty($activite->heure_fin)) {
@@ -147,7 +149,9 @@ class ReservationConflictService
 
         foreach ($activityReservations as $ar) {
             $activite = $ar->activite;
-            if (! $activite || ! $ar->date_seance) continue;
+            if (! $activite || ! $ar->date_seance) {
+                continue;
+            }
 
             if (empty($activite->heure_debut) || empty($activite->heure_fin)) {
                 $actStart = Carbon::parse($ar->date_seance)->startOfDay();

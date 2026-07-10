@@ -29,7 +29,7 @@ class AuditOwnerChecks extends Command
             $hasOwner = str_contains($content, "owner_id") || str_contains($content, "where('owner_id") || str_contains($content, 'owner_id !==');
             $hasAuthorizeGerant = str_contains($content, 'authorizeGerant(') || str_contains($content, 'authorizeGerant ');
             $report[] = [
-                'file' => str_replace(base_path().'\\', '', $f->getRealPath()),
+                'file' => str_replace(base_path() . '\\', '', $f->getRealPath()),
                 'has_owner_check' => $hasOwner ? 'yes' : 'no',
                 'has_authorizeGerant' => $hasAuthorizeGerant ? 'yes' : 'no',
             ];

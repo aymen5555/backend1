@@ -74,7 +74,7 @@ class RecommandationService
             // ── 20 pts: Rating match (moyenne_notation_c > 4.0) ──
             if (($complexe->moyenne_notation_c ?? 0) > 4.0) {
                 $score += 20;
-                $reasons[] = 'avec une note de '.number_format($complexe->moyenne_notation_c, 1).'/5';
+                $reasons[] = 'avec une note de ' . number_format($complexe->moyenne_notation_c, 1) . '/5';
             }
 
             // ── 20 pts: Budget match ──
@@ -330,6 +330,6 @@ class RecommandationService
             return "{$name} est recommandé pour vous.";
         }
 
-        return implode(', ', $reasons).'.';
+        return implode(', ', $reasons) . '.';
     }
 }

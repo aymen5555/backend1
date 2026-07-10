@@ -17,8 +17,12 @@ class FournisseurInterneController extends Controller
     private function resolveComplexe(): ?Complexe
     {
         $user = auth('api')->user();
-        if (!$user) return null;
-        if ($user->role === 'super_admin') return null; // super_admin sees all
+        if (!$user) {
+            return null;
+        }
+        if ($user->role === 'super_admin') {
+            return null; // super_admin sees all
+        }
         return Complexe::where('owner_id', $user->id)->first();
     }
 

@@ -80,7 +80,8 @@ class CommandeRefundTest extends TestCase
         $this->actingAs($client, 'api');
         JWTAuth::setToken($token);
 
-        $controller = new class extends CommandeController {};
+        $controller = new class extends CommandeController {
+        };
 
         $response = $controller->annuler($commande);
 
@@ -153,8 +154,9 @@ class CommandeRefundTest extends TestCase
         $this->actingAs($client, 'api');
         JWTAuth::setToken($token);
 
-        $controller = new class extends CommandeController {}
-;
+        $controller = new class extends CommandeController {
+        }
+        ;
 
         $response = $controller->annuler($commande);
 

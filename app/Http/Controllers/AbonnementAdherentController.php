@@ -98,44 +98,44 @@ class AbonnementAdherentController extends Controller
         // Normalize incoming date to the application timezone and compare calendar date
         $dateDebut = Carbon::parse($request->date_debut)->setTimezone(config('app.timezone'))->toDateString();
         // Ensure date_debut is not before today in server/app timezone
-            if (Carbon::parse($dateDebut)->lt(Carbon::today())) {
-                $refundInfo = null;
-                // If a Stripe payment intent was provided and frontend already charged,
-                // attempt to refund the payment to avoid orphaned charges.
-                if ($request->filled('reference') && str_starts_with($request->reference ?? '', 'pi_')) {
-                    try {
-                        Stripe::setApiKey(config('services.stripe.secret'));
-                        $existing = Refund::all(['payment_intent' => $request->reference]);
-                        if (! empty($existing->data) && count($existing->data) > 0) {
-                            $first = $existing->data[0];
-                            $refundInfo = [
-                                'already_refunded' => true,
-                                'refund_id' => $first->id ?? null,
-                                'status' => $first->status ?? null,
-                            ];
-                            Log::info('Auto-refund skipped because refund already exists', ['reference' => $request->reference, 'refund' => $refundInfo, 'date_debut' => $dateDebut]);
-                        } else {
-                            $refund = Refund::create(['payment_intent' => $request->reference]);
-                            $refundInfo = [
-                                'already_refunded' => false,
-                                'refund_id' => $refund->id ?? null,
-                                'status' => $refund->status ?? null,
-                            ];
-                            Log::info('Auto-refund issued due to date_debut before today', ['reference' => $request->reference, 'refund' => $refundInfo, 'date_debut' => $dateDebut]);
-                        }
-                    } catch (\Exception $e) {
-                        Log::error('Auto-refund failed for old date_debut', ['reference' => $request->reference, 'error' => $e->getMessage()]);
-                        $refundInfo = ['error' => $e->getMessage()];
+        if (Carbon::parse($dateDebut)->lt(Carbon::today())) {
+            $refundInfo = null;
+            // If a Stripe payment intent was provided and frontend already charged,
+            // attempt to refund the payment to avoid orphaned charges.
+            if ($request->filled('reference') && str_starts_with($request->reference ?? '', 'pi_')) {
+                try {
+                    Stripe::setApiKey(config('services.stripe.secret'));
+                    $existing = Refund::all(['payment_intent' => $request->reference]);
+                    if (! empty($existing->data) && count($existing->data) > 0) {
+                        $first = $existing->data[0];
+                        $refundInfo = [
+                            'already_refunded' => true,
+                            'refund_id' => $first->id ?? null,
+                            'status' => $first->status ?? null,
+                        ];
+                        Log::info('Auto-refund skipped because refund already exists', ['reference' => $request->reference, 'refund' => $refundInfo, 'date_debut' => $dateDebut]);
+                    } else {
+                        $refund = Refund::create(['payment_intent' => $request->reference]);
+                        $refundInfo = [
+                            'already_refunded' => false,
+                            'refund_id' => $refund->id ?? null,
+                            'status' => $refund->status ?? null,
+                        ];
+                        Log::info('Auto-refund issued due to date_debut before today', ['reference' => $request->reference, 'refund' => $refundInfo, 'date_debut' => $dateDebut]);
                     }
+                } catch (\Exception $e) {
+                    Log::error('Auto-refund failed for old date_debut', ['reference' => $request->reference, 'error' => $e->getMessage()]);
+                    $refundInfo = ['error' => $e->getMessage()];
                 }
-
-                $body = ['success' => false, 'message' => 'Validation failed.', 'errors' => ['date_debut' => ['The date debut field must be a date after or equal to today.']]];
-                if ($refundInfo !== null) {
-                    $body['refund'] = $refundInfo;
-                }
-
-                return response()->json($body, 422);
             }
+
+            $body = ['success' => false, 'message' => 'Validation failed.', 'errors' => ['date_debut' => ['The date debut field must be a date after or equal to today.']]];
+            if ($refundInfo !== null) {
+                $body['refund'] = $refundInfo;
+            }
+
+            return response()->json($body, 422);
+        }
         $dateFin = Carbon::parse($dateDebut)->addMonths($type->nb_mois)->toDateString();
 
         $hasOverlappingActive = AbonnementAdherent::where('user_id', $user->id)
@@ -150,7 +150,7 @@ class AbonnementAdherentController extends Controller
         $dateFin = Carbon::parse($dateDebut)->addMonths($type->nb_mois)->toDateString();
 
         $montantVente = $type->tarif;
-        
+
         // Calculate pricing using PricingService based on plan discount
         $pricingService = new PricingService();
         $pricing = $pricingService->calculateAbonnementPricing($type, $montantVente);
@@ -199,7 +199,7 @@ class AbonnementAdherentController extends Controller
             ->orderByDesc('date_debut')
             ->get();
 
-        $filtered = $subs->groupBy(fn ($sub) => $sub->complexe_id.'_'.$sub->type_abonnement_id)
+        $filtered = $subs->groupBy(fn ($sub) => $sub->complexe_id . '_' . $sub->type_abonnement_id)
             ->flatMap(function ($group) {
                 $activeSubs = $group->where('statut', 'actif');
                 if ($activeSubs->count() > 1) {
@@ -250,12 +250,12 @@ class AbonnementAdherentController extends Controller
 
         // Mark as cancelled
         $updateData = ['statut' => 'annule'];
-        
+
         // For card payments, set refund_status to pending (will require admin confirmation)
         if ($sub->paye) {
             $updateData['refund_status'] = 'pending';
         }
-        
+
         $sub->update($updateData);
 
         if ($sub->user) {
@@ -387,7 +387,7 @@ class AbonnementAdherentController extends Controller
 
             return response()->json(['success' => true, 'data' => $types, 'count' => $types->count()]);
         } catch (\Exception $e) {
-            Log::error('Error in adminTypes: '.$e->getMessage(), [
+            Log::error('Error in adminTypes: ' . $e->getMessage(), [
                 'exception' => $e,
                 'user_id' => auth('api')->id() ?? 'unknown',
             ]);
@@ -562,7 +562,7 @@ class AbonnementAdherentController extends Controller
 
             return response()->json(['success' => true, 'data' => $subs, 'count' => $subs->count()]);
         } catch (\Exception $e) {
-            Log::error('Error in adminAbonnements: '.$e->getMessage(), [
+            Log::error('Error in adminAbonnements: ' . $e->getMessage(), [
                 'exception' => $e,
                 'user_id' => auth('api')->id() ?? 'unknown',
             ]);
@@ -627,7 +627,7 @@ class AbonnementAdherentController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            Log::error('Error in AbonnementAdherentController@stats: '.$e->getMessage(), [
+            Log::error('Error in AbonnementAdherentController@stats: ' . $e->getMessage(), [
                 'exception' => $e,
                 'user_id' => auth('api')->id() ?? 'unknown',
             ]);
@@ -715,9 +715,9 @@ class AbonnementAdherentController extends Controller
     public function confirmerRemboursement($id): JsonResponse
     {
         $user = auth('api')->user();
-        
+
         // Intentionally avoid logging sensitive authorization headers or bearer tokens here.
-        
+
         $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
 
         // Admins can always review refunds. Gerants can only process refunds for their own complexe.

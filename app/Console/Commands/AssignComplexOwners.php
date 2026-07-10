@@ -54,7 +54,7 @@ class AssignComplexOwners extends Command
             return 0;
         }
 
-        $this->info('Found '.$complexes->count().' complexes with null owner_id.');
+        $this->info('Found ' . $complexes->count() . ' complexes with null owner_id.');
 
         foreach ($complexes as $c) {
             $this->line("- [{$c->id}] {$c->name} (created_at: {$c->created_at})");
@@ -66,7 +66,7 @@ class AssignComplexOwners extends Command
         }
 
         if (! $force) {
-            if (! $this->confirm('Proceed to assign owner_id='.$user->id.' to these complexes?')) {
+            if (! $this->confirm('Proceed to assign owner_id=' . $user->id . ' to these complexes?')) {
                 $this->info('Aborted.');
                 return 0;
             }

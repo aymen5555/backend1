@@ -101,9 +101,9 @@ class TestNotifications extends Command
             if ($sub) {
                 $client = $sub->user;
                 Auth::guard('api')->setUser($client);
-                $req = Request::create('/abonnements/'.$sub->id.'/pay', 'POST', [
+                $req = Request::create('/abonnements/' . $sub->id . '/pay', 'POST', [
                     'modalite_paiement' => 'carte',
-                    'reference' => 'TXN-'.now()->format('Y').'-'.rand(1000,9999),
+                    'reference' => 'TXN-' . now()->format('Y') . '-' . rand(1000, 9999),
                 ]);
                 $before = DatabaseNotification::count();
                 $controller = app(\App\Http\Controllers\AbonnementAdherentController::class);
@@ -164,7 +164,7 @@ class TestNotifications extends Command
                     $commande = \App\Models\Commande::find($order['id']);
                     if ($owner) {
                         Auth::guard('api')->setUser($owner);
-                        $req2 = Request::create('/commandes/'.$commande->id.'/statut', 'PUT', ['statut' => 'livree']);
+                        $req2 = Request::create('/commandes/' . $commande->id . '/statut', 'PUT', ['statut' => 'livree']);
                         $before2 = DatabaseNotification::count();
                         $resp2 = $controller->updateStatut($req2, $commande);
                         $after2 = DatabaseNotification::count();
@@ -202,7 +202,9 @@ class TestNotifications extends Command
 
     private function shortNotifSummary($notif, $created)
     {
-        if (! $created || ! $notif) return 'no new notification found';
+        if (! $created || ! $notif) {
+            return 'no new notification found';
+        }
         try {
             $data = is_array($notif->data) ? $notif->data : (array) $notif->data;
             $type = $data['type'] ?? $notif->type ?? 'unknown';

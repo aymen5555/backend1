@@ -19,7 +19,7 @@ class UpdateReservationStatus extends Command
         $expiredReservations = Reservation::where('status', 'pending')
             ->where('start_at', '<', $now)
             ->get();
-        
+
         $expiredCount = 0;
         foreach ($expiredReservations as $reservation) {
             $reservation->update(['status' => 'expired']);

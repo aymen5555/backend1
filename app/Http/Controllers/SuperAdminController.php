@@ -346,7 +346,6 @@ class SuperAdminController extends Controller
             DB::rollBack();
             throw $e;
         }
-
     }
 
     // ──────────────────────────────────────────────

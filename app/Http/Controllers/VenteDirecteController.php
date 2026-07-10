@@ -28,7 +28,7 @@ class VenteDirecteController extends Controller
     {
         $year   = date('Y');
         $prefix = "BS-{$year}-";
-        $last   = BonSortie::where('reference', 'like', $prefix.'%')
+        $last   = BonSortie::where('reference', 'like', $prefix . '%')
             ->where('complexe_id', $complexeId)
             ->lockForUpdate()
             ->orderByDesc('reference')
@@ -40,7 +40,7 @@ class VenteDirecteController extends Controller
             $maxSeq = (int) end($parts);
         }
 
-        return $prefix.str_pad($maxSeq + 1, 4, '0', STR_PAD_LEFT);
+        return $prefix . str_pad($maxSeq + 1, 4, '0', STR_PAD_LEFT);
     }
 
 
@@ -96,7 +96,7 @@ class VenteDirecteController extends Controller
 
                     // Get the max existing sequence number for this year with row locking to avoid duplicate references
                     $existing = DB::table('vente_directes')
-                        ->where('reference', 'like', $prefix.'%')
+                        ->where('reference', 'like', $prefix . '%')
                         ->lockForUpdate()
                         ->pluck('reference');
 
@@ -115,12 +115,12 @@ class VenteDirecteController extends Controller
 
                         $stock = Stock::where('produit_id', $ligne['produit_id'])->lockForUpdate()->first();
                         if (! $stock || $stock->quantite_disponible < $ligne['quantite']) {
-                            throw new \Exception('Stock insuffisant pour '.$produit->nom);
+                            throw new \Exception('Stock insuffisant pour ' . $produit->nom);
                         }
 
                         $prixUnitaire = $produit->prix;
                         $montantTotal = $prixUnitaire * $ligne['quantite'];
-                        $reference = $prefix.str_pad($nextSeq++, 5, '0', STR_PAD_LEFT);
+                        $reference = $prefix . str_pad($nextSeq++, 5, '0', STR_PAD_LEFT);
 
                         $vente = VenteDirecte::create([
                             'produit_id' => $produit->id,
@@ -157,7 +157,7 @@ class VenteDirecteController extends Controller
                         'date_bon_sor'      => now()->toDateString(),
                         'total_ttc_bon_sor' => collect($ventes)->sum('montant_total'),
                         'complexe_id'       => $complexe->id,
-                        'motif'             => 'Vente directe — '.($request->client_nom ?? 'client anonyme'),
+                        'motif'             => 'Vente directe — ' . ($request->client_nom ?? 'client anonyme'),
                         'created_by'        => auth('api')->id(),
                     ]);
                     foreach ($ventes as $v) {
@@ -210,7 +210,7 @@ class VenteDirecteController extends Controller
             if (! $stock || $stock->quantite_disponible < $request->quantite) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Stock insuffisant pour '.$produit->nom,
+                    'message' => 'Stock insuffisant pour ' . $produit->nom,
                 ], 422);
             }
 
@@ -221,7 +221,7 @@ class VenteDirecteController extends Controller
             $year = date('Y');
             $prefix = "TXN-{$year}-";
             $existing = DB::table('vente_directes')
-                ->where('reference', 'like', $prefix.'%')
+                ->where('reference', 'like', $prefix . '%')
                 ->lockForUpdate()
                 ->pluck('reference');
             $maxSeq = 0;
@@ -233,7 +233,7 @@ class VenteDirecteController extends Controller
                 }
             }
             $nextSeq = $maxSeq + 1;
-            $reference = $prefix.str_pad($nextSeq, 5, '0', STR_PAD_LEFT);
+            $reference = $prefix . str_pad($nextSeq, 5, '0', STR_PAD_LEFT);
 
             $vente = VenteDirecte::create([
                 'produit_id'         => $produit->id,
@@ -258,7 +258,7 @@ class VenteDirecteController extends Controller
                 'date_bon_sor'      => now()->toDateString(),
                 'total_ttc_bon_sor' => $montantTotal,
                 'complexe_id'       => $complexeId,
-                'motif'             => 'Vente directe — '.($request->client_nom ?? 'client anonyme'),
+                'motif'             => 'Vente directe — ' . ($request->client_nom ?? 'client anonyme'),
                 'created_by'        => auth('api')->id(),
             ]);
             LigneBonSortie::create([

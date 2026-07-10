@@ -81,10 +81,12 @@ class GerantAssignAndBonTest extends TestCase
 
         auth('api')->setUser($gerant);
 
-        $request = Request::create('/test-guard/'.$product->id, 'PATCH');
+        $request = Request::create('/test-guard/' . $product->id, 'PATCH');
         $request->setRouteResolver(function () use ($product) {
-            return new class($product) {
-                public function __construct(private readonly Produit $product) {}
+            return new class ($product) {
+                public function __construct(private readonly Produit $product)
+                {
+                }
 
                 public function parameter(string $name): mixed
                 {

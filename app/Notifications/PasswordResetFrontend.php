@@ -18,7 +18,7 @@ class PasswordResetFrontend extends Notification
 
     public function toMail($notifiable)
     {
-        return (new MailMessage)
+        return (new MailMessage())
             ->subject('Réinitialisation du mot de passe')
             ->line("Vous recevez cet e-mail parce que nous avons reçu une demande de réinitialisation du mot de passe pour votre compte.")
             ->action('Réinitialiser le mot de passe', $this->resetUrl)

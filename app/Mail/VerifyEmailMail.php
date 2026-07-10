@@ -11,12 +11,14 @@ use Illuminate\Queue\SerializesModels;
 
 class VerifyEmailMail extends Mailable
 {
-    use Queueable, SerializesModels;
+    use Queueable;
+    use SerializesModels;
 
     public function __construct(
         public User $user,
         public string $verifyUrl,
-    ) {}
+    ) {
+    }
 
     public function envelope(): Envelope
     {

@@ -67,7 +67,7 @@ class CommandeController extends Controller
             if (! $produit) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Produit introuvable: '.$item['produit_id'],
+                    'message' => 'Produit introuvable: ' . $item['produit_id'],
                 ], 422);
             }
 
@@ -75,7 +75,7 @@ class CommandeController extends Controller
             if (! $stock || $stock->quantite_disponible < $item['quantite']) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Stock insuffisant pour '.$produit->nom,
+                    'message' => 'Stock insuffisant pour ' . $produit->nom,
                 ], 422);
             }
         }
@@ -88,7 +88,7 @@ class CommandeController extends Controller
                     $produit = $produits->get($item['produit_id']);
                     $stock = Stock::where('produit_id', $produit->id)->lockForUpdate()->first();
                     if (! $stock || $stock->quantite_disponible < $item['quantite']) {
-                        throw new \Exception('Stock insuffisant pour '.$produit->nom);
+                        throw new \Exception('Stock insuffisant pour ' . $produit->nom);
                     }
                     $stock->decrement('quantite_disponible', $item['quantite']);
 
@@ -195,7 +195,7 @@ class CommandeController extends Controller
             foreach ($items as $item) {
                 $prod = $produits->get($item['produit_id']);
                 if (! $prod) {
-                    return response()->json(['success' => false, 'message' => 'Produit introuvable: '.$item['produit_id']], 422);
+                    return response()->json(['success' => false, 'message' => 'Produit introuvable: ' . $item['produit_id']], 422);
                 }
                 $qty = max(1, (int) ($item['quantite'] ?? 1));
                 $tndAmount += ($prod->prix * $qty);
@@ -267,7 +267,7 @@ class CommandeController extends Controller
         } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Impossible de créer le paiement Stripe : '.$e->getMessage(),
+                'message' => 'Impossible de créer le paiement Stripe : ' . $e->getMessage(),
             ], 500);
         }
     }
@@ -304,7 +304,7 @@ class CommandeController extends Controller
             foreach ($items as $item) {
                 $prod = $produits->get($item['produit_id']);
                 if (! $prod) {
-                    return response()->json(['success' => false, 'message' => 'Produit introuvable: '.$item['produit_id']], 422);
+                    return response()->json(['success' => false, 'message' => 'Produit introuvable: ' . $item['produit_id']], 422);
                 }
                 $qty = max(1, (int) ($item['quantite'] ?? 1));
                 $tndAmount += ($prod->prix * $qty);
@@ -322,7 +322,7 @@ class CommandeController extends Controller
             $tndAmount = $ab->reste_a_payer ?? $ab->montant_apres_remise ?? $ab->montant_vente ?? 0;
             $contextComplexeId = $ab->complexe_id ?? $ab->typeAbonnement?->complexe_id ?? null;
         }
-        
+
 
         $stripeCurrency = strtolower(config('services.stripe.currency', 'eur'));
 
@@ -544,7 +544,7 @@ class CommandeController extends Controller
         $commandes = $query->orderByDesc('created_at')->get();
 
         $commandes->each(function ($commande) {
-            $commande->client_nom = $commande->user->first_name.' '.$commande->user->last_name;
+            $commande->client_nom = $commande->user->first_name . ' ' . $commande->user->last_name;
             $commande->client_email = $commande->user->email;
             $commande->produits = $commande->lignes->map(function ($ligne) {
                 return [

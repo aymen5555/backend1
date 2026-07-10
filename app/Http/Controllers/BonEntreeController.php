@@ -31,7 +31,7 @@ class BonEntreeController extends Controller
     private function generateReference(int $complexeId, string $prefix): string
     {
         $year = date('Y');
-        $last = BonEntree::where('reference', 'like', $prefix.$year.'-%')
+        $last = BonEntree::where('reference', 'like', $prefix . $year . '-%')
             ->where('complexe_id', $complexeId)
             ->lockForUpdate()
             ->orderByDesc('reference')
@@ -46,7 +46,7 @@ class BonEntreeController extends Controller
             }
         }
 
-        return $prefix.$year.'-'.str_pad($maxSeq + 1, 4, '0', STR_PAD_LEFT);
+        return $prefix . $year . '-' . str_pad($maxSeq + 1, 4, '0', STR_PAD_LEFT);
     }
 
     public function index(Request $request): JsonResponse
@@ -179,7 +179,7 @@ class BonEntreeController extends Controller
     public function confirmerPaiement(Request $request, BonEntree $bonEntree): JsonResponse
     {
         $this->authorizeGerant($bonEntree->complexe_id);
-        
+
         $validator = Validator::make($request->all(), [
             'montant' => 'required|numeric|min:0.01',
             'type' => 'nullable|string',

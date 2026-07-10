@@ -62,7 +62,7 @@ class NoDataDeletionTest extends TestCase
         $this->actingAs($user, 'api');
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
-            ->deleteJson('/api/abonnement-adherents/'.$sub->id);
+            ->deleteJson('/api/abonnement-adherents/' . $sub->id);
 
         $response->assertStatus(200)
             ->assertJson(['success' => true]);

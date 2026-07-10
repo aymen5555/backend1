@@ -48,7 +48,10 @@ class PricingServiceTest extends TestCase
         $service = new PricingService();
 
         $user = new class extends \App\Models\User {
-            public function isAdherentAt(int $complexeId): bool { return false; }
+            public function isAdherentAt(int $complexeId): bool
+            {
+                return false;
+            }
         };
 
         $start = Carbon::parse('2026-07-10 10:00');
@@ -63,7 +66,10 @@ class PricingServiceTest extends TestCase
         $service = new PricingService();
 
         $user = new class extends \App\Models\User {
-            public function isAdherentAt(int $complexeId): bool { return false; }
+            public function isAdherentAt(int $complexeId): bool
+            {
+                return false;
+            }
         };
 
         $start = Carbon::parse('2026-07-10 10:00');

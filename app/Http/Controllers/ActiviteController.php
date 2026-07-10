@@ -23,7 +23,8 @@ class ActiviteController extends Controller
     public function __construct(
         private readonly PricingService $pricing,
         private readonly ReservationConflictService $conflicts
-    ) {}
+    ) {
+    }
     /* ─────────────────────────────────────────────────────
      | PUBLIC — no auth required
      ───────────────────────────────────────────────────── */
@@ -355,7 +356,7 @@ class ActiviteController extends Controller
         }
 
         // Must be more than 2 hours before the session
-        $seanceAt = Carbon::parse($reservation->date_seance->format('Y-m-d').' '.$reservation->activite->heure_debut);
+        $seanceAt = Carbon::parse($reservation->date_seance->format('Y-m-d') . ' ' . $reservation->activite->heure_debut);
         $now = Carbon::now('Africa/Tunis');
         $isPaidCardReservation = $reservation->statut_paiement === 'paye' && $reservation->modalite_paiement === 'carte';
 

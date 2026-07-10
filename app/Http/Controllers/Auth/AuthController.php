@@ -26,7 +26,8 @@ class AuthController extends Controller
 {
     public function __construct(
         private readonly EmailVerificationService $emailVerification
-    ) {}
+    ) {
+    }
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  POST /api/auth/register
@@ -213,7 +214,7 @@ class AuthController extends Controller
             try {
                 $token = Password::broker()->createToken($user);
                 $frontend = rtrim(env('FRONTEND_URL', 'http://localhost:4200'), '/');
-                $resetUrl = $frontend.'/auth/reset-password?token='.urlencode($token).'&email='.urlencode($user->email);
+                $resetUrl = $frontend . '/auth/reset-password?token=' . urlencode($token) . '&email=' . urlencode($user->email);
 
                 $user->notify(new PasswordResetFrontend($resetUrl));
 
@@ -525,4 +526,3 @@ class AuthController extends Controller
         return app()->environment('local') && config('mail.default') === 'log';
     }
 }
-

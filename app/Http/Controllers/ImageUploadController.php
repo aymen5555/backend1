@@ -39,7 +39,7 @@ class ImageUploadController extends Controller
                 'success' => true,
                 'message' => 'Image uploaded successfully.',
                 'data' => [
-                    'url' => url('/storage/'.$path),
+                    'url' => url('/storage/' . $path),
                 ],
             ]);
         } catch (\Exception $e) {

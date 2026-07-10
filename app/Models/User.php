@@ -12,7 +12,8 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
 
 class User extends Authenticatable implements CanResetPasswordContract, JWTSubject
 {
-    use CanResetPassword, Notifiable;
+    use CanResetPassword;
+    use Notifiable;
 
     protected $fillable = [
         'first_name',
