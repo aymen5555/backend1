@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, audit/fix-refunds-and-ventes ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v4
+        with:
+          php-version: 8.1
+          extensions: mbstring, xml, bcmath
+
+      - name: Validate composer
+        run: composer --version
+
+      - name: Install dependencies
+        run: composer install --no-progress --no-interaction --prefer-dist
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse -c phpstan.neon app tests --level=7 --memory-limit=1G || true
+
+      - name: Run PHPCS
+        run: vendor/bin/phpcs --standard=phpcs.xml app tests || true
+
+      - name: Run PHPCBF (auto-fix)
+        run: vendor/bin/phpcbf --standard=phpcs.xml app tests || true
+
+      - name: Run PHPUnit
+        run: php vendor/phpunit/phpunit/phpunit --colors=never
+
+      - name: Upload phpstan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phpstan-report
+          path: phpstan_report.json
