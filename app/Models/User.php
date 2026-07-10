@@ -103,6 +103,32 @@ class User extends Authenticatable implements CanResetPasswordContract, JWTSubje
         return $this->isGerant() || $this->isAdmin();
     }
 
+    /**
+     * Check if user can manage a specific complex.
+     * SUPER_ADMIN can manage any complex.
+     * GERANT can only manage their own complexes.
+     */
+    public function canManageComplex(Complexe|int $complexe): bool
+    {
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        $complexeId = $complexe instanceof Complexe ? $complexe->id : $complexe;
+        $ownedComplexeIds = $this->complexes()->pluck('id')->toArray();
+
+        return in_array($complexeId, $ownedComplexeIds);
+    }
+
+    /**
+     * Check if user can manage a resource in a specific complex.
+     * Used for bons, products, terrains, etc. that belong to a complex.
+     */
+    public function canManageComplexResource(Complexe|int $complexe): bool
+    {
+        return $this->canManageComplex($complexe);
+    }
+
     public function hasVerifiedEmail(): bool
     {
         return $this->email_verified_at !== null;
@@ -133,29 +159,17 @@ class User extends Authenticatable implements CanResetPasswordContract, JWTSubje
         return $this->hasMany(ReservationActivite::class);
     }
 
-    public function abonnements(): HasMany
-    {
-        return $this->hasMany(Abonnement::class);
-    }
-
     public function abonnementsAdherent(): HasMany
     {
         return $this->hasMany(AbonnementAdherent::class, 'user_id');
-    }
-
-    public function hasActiveAbonnement(): bool
-    {
-        return $this->abonnements()
-            ->where('status', 'active')
-            ->where('expires_at', '>', now())
-            ->exists();
     }
 
     public function isAdherentAt(int $complexeId): bool
     {
         return $this->abonnementsAdherent()
             ->where('complexe_id', $complexeId)
-            ->where('statut', 'actif')
+            ->whereIn('statut', ['actif', 'active'])
+            ->where('paye', true)
             ->where('date_fin', '>=', now()->toDateString())
             ->exists();
     }

@@ -13,6 +13,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Log;
+use Symfony\Component\Routing\Exception\RouteNotFoundException;
+use App\Notifications\PasswordResetFrontend;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -25,9 +28,9 @@ class AuthController extends Controller
         private readonly EmailVerificationService $emailVerification
     ) {}
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  POST /api/auth/register
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function register(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -160,9 +163,9 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  POST /api/auth/forgot-password
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function forgotPassword(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -177,24 +180,68 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $status = Password::sendResetLink($request->only('email'));
+        try {
+            $status = Password::sendResetLink($request->only('email'));
 
-        if ($status === Password::RESET_LINK_SENT) {
+            if ($status === Password::RESET_LINK_SENT) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Password reset link sent. Please check your email.',
+                ]);
+            }
+
             return response()->json([
-                'success' => true,
-                'message' => 'Password reset link sent. Please check your email.',
-            ]);
-        }
+                'success' => false,
+                'message' => 'Unable to send password reset link. Please check the provided email address.',
+            ], 422);
+        } catch (RouteNotFoundException $e) {
+            // Laravel's default ResetPassword notification attempts to generate a URL
+            // with route('password.reset') which may not exist in an API+frontend setup.
+            // Fallback: generate a token and send a frontend URL using FRONTEND_URL.
+            Log::warning('password.reset route missing; falling back to frontend URL', ['exception' => $e->getMessage()]);
 
-        return response()->json([
-            'success' => false,
-            'message' => 'Unable to send password reset link. Please verify your email address.',
-        ], 422);
+            $user = User::where('email', strtolower($request->email))->first();
+
+            // Preserve privacy: if no user found, respond as if email was sent.
+            if (! $user) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Password reset link sent. Please check your email.',
+                ]);
+            }
+
+            try {
+                $token = Password::broker()->createToken($user);
+                $frontend = rtrim(env('FRONTEND_URL', 'http://localhost:4200'), '/');
+                $resetUrl = $frontend.'/auth/reset-password?token='.urlencode($token).'&email='.urlencode($user->email);
+
+                $user->notify(new PasswordResetFrontend($resetUrl));
+
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Password reset link sent. Please check your email.',
+                ]);
+            } catch (\Throwable $sendEx) {
+                Log::error('Fallback password reset send failed', ['exception' => $sendEx->getMessage()]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unable to send password reset link due to an internal error.',
+                ], 500);
+            }
+        } catch (\Throwable $e) {
+            Log::error('Error sending password reset link', ['exception' => $e->getMessage()]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to send password reset link due to an internal error.',
+            ], 500);
+        }
     }
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  POST /api/auth/reset-password
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function resetPassword(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -236,9 +283,9 @@ class AuthController extends Controller
         ], 422);
     }
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  POST /api/auth/login
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function login(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -378,15 +425,15 @@ class AuthController extends Controller
         ]);
     }
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  POST /api/auth/logout  (protected)
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function logout(): JsonResponse
     {
         try {
             JWTAuth::invalidate(JWTAuth::getToken());
         } catch (JWTException) {
-            // token already expired — still treat as logout
+            // token already expired â€” still treat as logout
         }
 
         return response()->json([
@@ -396,9 +443,9 @@ class AuthController extends Controller
         ]);
     }
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  POST /api/auth/refresh  (protected)
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function refresh(): JsonResponse
     {
         try {
@@ -421,9 +468,9 @@ class AuthController extends Controller
         ]);
     }
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  GET /api/auth/me  (protected)
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     public function me(): JsonResponse
     {
         $user = JWTAuth::user();
@@ -439,9 +486,9 @@ class AuthController extends Controller
         ]);
     }
 
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     //  Private helpers
-    // ──────────────────────────────────────────────
+    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     private function formatUser(User $user): array
     {
         $data = [
@@ -478,3 +525,4 @@ class AuthController extends Controller
         return app()->environment('local') && config('mail.default') === 'log';
     }
 }
+

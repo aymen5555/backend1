@@ -15,11 +15,15 @@ class BonEntree extends Model
         'fournisseur_interne_id',
         'complexe_id',
         'created_by',
+        'montant_paye',
+        'reference_paiement',
+        'statut_paiement',
     ];
 
     protected $casts = [
         'date_bon_ent' => 'date',
         'total_ttc_bon_ent' => 'decimal:2',
+        'montant_paye' => 'decimal:2',
     ];
 
     public function fournisseurInterne(): BelongsTo
@@ -40,5 +44,10 @@ class BonEntree extends Model
     public function lignes(): HasMany
     {
         return $this->hasMany(LigneBonEntree::class, 'bon_entree_id');
+    }
+
+    public function reglements(): HasMany
+    {
+        return $this->hasMany(ReglementBonEntree::class, 'bon_entree_id');
     }
 }

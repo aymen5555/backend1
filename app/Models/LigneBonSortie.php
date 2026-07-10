@@ -27,4 +27,14 @@ class LigneBonSortie extends Model
     {
         return $this->belongsTo(Produit::class, 'produit_id');
     }
+
+    protected $appends = ['sous_total'];
+
+    public function getSousTotalAttribute(): float
+    {
+        $qty = (float) ($this->quantite_entree_lig_bon_sor ?? 0);
+        $prix = (float) ($this->prix_unitaire_constate ?? 0);
+
+        return round($qty * $prix, 2);
+    }
 }

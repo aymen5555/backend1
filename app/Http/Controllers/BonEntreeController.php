@@ -7,6 +7,7 @@ use App\Models\Complexe;
 use App\Models\LigneBonEntree;
 use App\Models\Produit;
 use App\Models\Stock;
+use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -169,8 +170,53 @@ class BonEntreeController extends Controller
 
     public function show(BonEntree $bonEntree): JsonResponse
     {
-        $bonEntree->load(['fournisseurInterne', 'complexe', 'lignes.produit', 'creePar']);
+        $this->authorizeGerant($bonEntree->complexe_id);
+        $bonEntree->load(['fournisseurInterne', 'complexe', 'lignes.produit', 'creePar', 'reglements']);
 
         return response()->json(['success' => true, 'data' => $bonEntree]);
+    }
+
+    public function confirmerPaiement(Request $request, BonEntree $bonEntree): JsonResponse
+    {
+        $this->authorizeGerant($bonEntree->complexe_id);
+        
+        $validator = Validator::make($request->all(), [
+            'montant' => 'required|numeric|min:0.01',
+            'type' => 'nullable|string',
+            'reference' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'errors' => $validator->errors()], 422);
+        }
+
+        $data = $validator->validated();
+
+        $user = auth('api')->user();
+
+        return DB::transaction(function () use ($bonEntree, $data, $user) {
+            $montant = (float) $data['montant'];
+
+            $reg = \App\Models\ReglementBonEntree::create([
+                'bon_entree_id' => $bonEntree->id,
+                'type' => $data['type'] ?? 'paiement',
+                'montant' => $montant,
+                'reference' => $data['reference'] ?? null,
+                'created_by' => auth('api')->id(),
+            ]);
+
+            $nouveauPaye = (float) $bonEntree->montant_paye + $montant;
+            $statut = $nouveauPaye >= (float) $bonEntree->total_ttc_bon_ent ? 'paye' : 'partiel';
+
+            $bonEntree->update([
+                'montant_paye' => $nouveauPaye,
+                'reference_paiement' => $data['reference'] ?? $bonEntree->reference_paiement,
+                'statut_paiement' => $statut,
+            ]);
+
+            AuditService::payment($user, 'BonEntree', $bonEntree->id, $montant, $data['type'] ?? 'paiement');
+
+            return response()->json(['success' => true, 'data' => $reg, 'bon' => $bonEntree->fresh()]);
+        });
     }
 }

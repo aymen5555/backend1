@@ -126,6 +126,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('admin/reservations', [AdminReservationController::class, 'manualStore']);
         Route::put('admin/reservations/{reservation}/confirm-cash', [AdminReservationController::class, 'confirmCash']);
         Route::put('admin/reservations/{reservation}/confirm-payment', [AdminReservationController::class, 'confirmCardPayment']);
+        Route::put('admin/reservations/{reservation}/confirm-refund', [ReservationController::class, 'confirmerRemboursement']);
         Route::put('admin/reservations/{reservation}', [AdminReservationController::class, 'adminUpdate']);
         Route::delete('admin/reservations/{reservation}', [AdminReservationController::class, 'adminDestroy']);
         Route::get('admin/archives', [AdminReservationController::class, 'archives']);
@@ -183,6 +184,7 @@ Route::middleware('auth:api')->group(function () {
         Route::get('admin/abonnements-adherent', [AbonnementAdherentController::class, 'adminAbonnements']);
         Route::put('admin/abonnements-adherent/{id}/confirm-payment', [AbonnementAdherentController::class, 'adminConfirmPayment']);
         Route::put('admin/abonnements-adherent/{id}/cancel', [AbonnementAdherentController::class, 'adminCancel']);
+        Route::put('admin/abonnements-adherent/{id}/confirm-refund', [AbonnementAdherentController::class, 'confirmerRemboursement']);
         Route::delete('admin/abonnements-adherent/{id}', [AbonnementAdherentController::class, 'adminDestroy']);
     });
 
@@ -191,11 +193,14 @@ Route::middleware('auth:api')->group(function () {
     Route::delete('activites/reservations/{reservation}', [ActiviteController::class, 'cancelMyReservation']);
     Route::delete('activites/reservations/{reservation}/delete', [ActiviteController::class, 'deleteMyReservation']);
     Route::put('activites/reservations/{reservation}/pay', [ActiviteController::class, 'payReservation']);
+    Route::put('admin/activites/reservations/{reservation}/confirm-refund', [ActiviteController::class, 'confirmerRemboursement']);
     Route::post('activites/{activite}/reserver', [ActiviteController::class, 'reserver']);
     Route::get('mes-activites', [ActiviteController::class, 'mesActivites']);
 
     // ── Client Commands ────────────────────────────────────────────────────────
     Route::post('commandes', [CommandeController::class, 'store']);
+    Route::post('payments/create-intent', [CommandeController::class, 'createPaymentIntent']);
+    Route::post('payments/preview', [CommandeController::class, 'previewPayment']);
     Route::get('mes-commandes', [CommandeController::class, 'mesCommandes']);
     Route::get('mes-commandes/{commande}', [CommandeController::class, 'show']);
     Route::delete('mes-commandes/{commande}/annuler', [CommandeController::class, 'annuler']);
@@ -212,6 +217,7 @@ Route::middleware('auth:api')->group(function () {
         Route::put('admin/commandes/{commande}/statut', [CommandeController::class, 'updateStatut']);
         Route::put('admin/commandes/{commande}/confirmer-paiement', [CommandeController::class, 'confirmerPaiement']);
         Route::put('admin/commandes/{commande}/annuler', [CommandeController::class, 'adminAnnuler']);
+        Route::put('admin/commandes/{commande}/confirmer-remboursement', [CommandeController::class, 'confirmerRemboursement']);
 
         Route::get('admin/ventes-directes', [VenteDirecteController::class, 'index']);
         Route::post('admin/ventes-directes', [VenteDirecteController::class, 'store']);
@@ -227,13 +233,17 @@ Route::middleware('auth:api')->group(function () {
         Route::get('admin/bons-entree', [BonEntreeController::class, 'index']);
         Route::post('admin/bons-entree', [BonEntreeController::class, 'store']);
         Route::get('admin/bons-entree/{bonEntree}', [BonEntreeController::class, 'show']);
+        Route::put('admin/bons-entree/{bonEntree}/confirmer-paiement', [BonEntreeController::class, 'confirmerPaiement']);
 
         Route::get('admin/bons-sortie', [BonSortieController::class, 'index']);
         Route::post('admin/bons-sortie', [BonSortieController::class, 'store']);
         Route::get('admin/bons-sortie/{bonSortie}', [BonSortieController::class, 'show']);
+        Route::put('admin/bons-sortie/{bonSortie}/confirmer-paiement', [BonSortieController::class, 'confirmerPaiement']);
 
         Route::apiResource('admin/types-depenses', TypeDepenseController::class);
         Route::apiResource('admin/depenses', DepenseController::class);
+
+        Route::apiResource('admin/categories-fournisseurs', CategorieFournisseurController::class);
     });
 
     // ── Categories SUPER_ADMIN only ───────────────────────────────────────────
@@ -250,7 +260,6 @@ Route::middleware('auth:api')->group(function () {
         Route::apiResource('admin/details-abonnements', DetailAbonnementController::class)->only(['index', 'store', 'destroy']);
 
         Route::apiResource('admin/categories-abonnement-adherent', CategorieAbonnementAdherentController::class);
-        Route::apiResource('admin/categories-fournisseurs', CategorieFournisseurController::class);
         Route::apiResource('admin/categories-ressources', CategorieRessourceController::class);
     });
 

@@ -15,11 +15,17 @@ class Commande extends Model
         'statut_paiement',
         'modalite_paiement',
         'montant_total',
+        'montant_paye',
+        'reference_paiement',
         'notes',
+        'stripe_payment_intent_id',
+        'refund_status',
+        'refund_reference',
     ];
 
     protected $casts = [
         'montant_total' => 'float',
+        'montant_paye' => 'decimal:2',
     ];
 
     public function user(): BelongsTo
@@ -35,6 +41,11 @@ class Commande extends Model
     public function lignes(): HasMany
     {
         return $this->hasMany(LigneCommande::class, 'commande_id');
+    }
+
+    public function reglements(): HasMany
+    {
+        return $this->hasMany(ReglementCommande::class, 'commande_id');
     }
 
     public function calculerTotal(): void

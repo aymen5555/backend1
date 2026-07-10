@@ -35,4 +35,15 @@ return [
         ],
     ],
 
+    'stripe' => [
+        'key' => env('STRIPE_KEY'),
+        'secret' => env('STRIPE_SECRET'),
+        'currency' => env('STRIPE_CURRENCY', 'eur'),
+    ],
+    'fx' => [
+        // Admin-configurable conversion rate from TND -> EUR (simple single-value fallback)
+        // Example: FX_TND_TO_EUR=0.32
+        'tnd_to_eur' => env('FX_TND_TO_EUR', 0.32),
+    ],
+
 ];

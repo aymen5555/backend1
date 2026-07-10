@@ -102,6 +102,12 @@ class FournisseurInterneController extends Controller
 
     public function show(FournisseurInterne $fournisseurs_interne): JsonResponse
     {
+        // Ensure gerant can only view their own complexe's suppliers
+        $complexe = $this->resolveComplexe();
+        if ($complexe && $fournisseurs_interne->complexe_id !== $complexe->id) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+        }
+
         $fournisseurs_interne->load('bonEntrees');
 
         return response()->json(['success' => true, 'data' => $fournisseurs_interne]);
@@ -109,6 +115,12 @@ class FournisseurInterneController extends Controller
 
     public function update(Request $request, FournisseurInterne $fournisseurs_interne): JsonResponse
     {
+        // Ensure gerant can only update their own complexe's suppliers
+        $complexe = $this->resolveComplexe();
+        if ($complexe && $fournisseurs_interne->complexe_id !== $complexe->id) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+        }
+
         $validator = Validator::make($request->all(), [
             'nom_f_int'               => 'required|string|max:255',
             'raison_sociale_f_int'    => 'nullable|string|max:255',
@@ -131,6 +143,12 @@ class FournisseurInterneController extends Controller
 
     public function destroy(FournisseurInterne $fournisseurs_interne): JsonResponse
     {
+        // Ensure gerant can only delete their own complexe's suppliers
+        $complexe = $this->resolveComplexe();
+        if ($complexe && $fournisseurs_interne->complexe_id !== $complexe->id) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+        }
+
         if ($fournisseurs_interne->bonEntrees()->exists()) {
             return response()->json([
                 'success' => false,
@@ -145,6 +163,12 @@ class FournisseurInterneController extends Controller
 
     public function toggleActive(FournisseurInterne $fournisseurs_interne): JsonResponse
     {
+        // Ensure gerant can only toggle their own complexe's suppliers
+        $complexe = $this->resolveComplexe();
+        if ($complexe && $fournisseurs_interne->complexe_id !== $complexe->id) {
+            return response()->json(['success' => false, 'message' => 'Accès non autorisé.'], 403);
+        }
+
         $fournisseurs_interne->update(['active' => !$fournisseurs_interne->active]);
 
         return response()->json(['success' => true, 'data' => $fournisseurs_interne]);

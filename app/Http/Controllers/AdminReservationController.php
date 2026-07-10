@@ -6,6 +6,7 @@ use App\Models\ReglementReservation;
 use App\Models\Reservation;
 use App\Models\Terrain;
 use App\Models\User;
+use App\Services\AuditService;
 use App\Services\PricingService;
 use App\Services\ReservationConflictService;
 use App\Services\ReservationLockService;
@@ -135,7 +136,7 @@ class AdminReservationController extends Controller
         ], 201);
     }
 
-    public function confirmCash(Reservation $reservation): JsonResponse
+    public function confirmCash(Request $request, Reservation $reservation): JsonResponse
     {
         $user = auth('api')->user();
         if (! $user || ! $user->isGerantOrAdmin()) {
@@ -175,9 +176,18 @@ class AdminReservationController extends Controller
             ], 422);
         }
 
-        $client = User::find($reservation->user_id); // CRITICAL: use the booking client, not auth() admin
+        $validator = Validator::make($request->all(), [
+            'montant' => 'nullable|numeric|min:0',
+            'reference' => 'nullable|string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+        }
+
+        $client = User::find($reservation->user_id); // use booking client
         $complexeId = $terrain->complexe_id;
-        $montant = $this->pricing->calculate(
+        $total = $this->pricing->calculate(
             $terrain->price_per_hour ?? 0,
             Carbon::parse($reservation->start_at),
             Carbon::parse($reservation->end_at),
@@ -185,18 +195,27 @@ class AdminReservationController extends Controller
             $complexeId
         );
 
-        $reservation->update([
-            'status' => 'confirmed',
-            'statut_paiement' => 'paye',
-            'montant_paye' => $montant,
-        ]);
+        $given = $request->filled('montant') ? (float) $request->montant : $total;
 
+        // create a reglement record for the amount received
         ReglementReservation::create([
             'reservation_id' => $reservation->id,
             'type' => 'paiement',
-            'montant' => $montant,
-            'reference' => 'cash_confirmed_by_admin',
+            'montant' => $given,
+            'reference' => $request->reference ?? 'cash_confirmed_by_admin',
         ]);
+
+        // update reservation paid amount and status accordingly
+        $newPaid = ($reservation->montant_paye ?? 0) + $given;
+        $isFullyPaid = $newPaid >= $total - 0.0001;
+
+        $reservation->update([
+            'montant_paye' => $newPaid,
+            'statut_paiement' => $isFullyPaid ? 'paye' : 'partiel',
+            'status' => $isFullyPaid ? 'confirmed' : 'pending',
+        ]);
+
+        AuditService::payment($user, 'Reservation', $reservation->id, $given, 'especes');
 
         if ($reservation->user) {
             $reservation->user->notify(new \App\Notifications\ReservationStatusChanged($reservation, "Le paiement en espèces de votre réservation du " . ($reservation->date_seance_res ?? '') . " a été confirmé."));
@@ -323,6 +342,8 @@ class AdminReservationController extends Controller
             'montant' => $montant,
             'reference' => $reference,
         ]);
+
+        AuditService::payment($user, 'Reservation', $reservation->id, $montant, 'carte');
 
         if ($reservation->user) {
             $reservation->user->notify(new \App\Notifications\ReservationStatusChanged($reservation, "Le paiement par carte de votre réservation du " . ($reservation->date_seance_res ?? '') . " a été confirmé."));

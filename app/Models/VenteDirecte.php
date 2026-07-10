@@ -15,6 +15,7 @@ class VenteDirecte extends Model
         'prix_unitaire',
         'montant_total',
         'modalite_paiement',
+        'stripe_payment_intent_id',
         'client_nom',
         'user_id',
         'notes',

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Complexe;
 use App\Models\Reservation;
+use App\Services\ReservationConflictService;
 use App\Models\Terrain;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +15,7 @@ use function auth;
 
 class TerrainController extends Controller
 {
+    public function __construct(private readonly ReservationConflictService $conflicts) {}
     public function index(Request $request): JsonResponse
     {
         $validator = Validator::make($request->all(), [
@@ -227,20 +229,24 @@ class TerrainController extends Controller
         $stepMinutes = ($sessionHours * 60) + $sessionMinutes;
 
         $slots = [];
+        $user = auth('api')->user();
         for ($mins = $openHour * 60; $mins + $stepMinutes <= $closeHour * 60; $mins += $stepMinutes) {
             $hours = intdiv($mins, 60);
             $minutes = $mins % 60;
             $time = sprintf('%02d:%02d', $hours, $minutes);
 
+            $requestedTz = $timezone ?: config('app.timezone');
+
+            // Generate slot base times using server timezone to match terrain opening hours
             $startAt = Carbon::parse("{$date} {$time}:00", config('app.timezone'));
             $endAt = $startAt->copy()->addMinutes($stepMinutes);
 
-            // Skip slots in the past using the same timezone
+            // Skip slots in the past using server timezone
             if ($startAt->isPast()) {
                 continue;
             }
 
-            // Check if slot is available
+            // Check if slot is available (occupied by others) for this terrain
             $hasConflict = Reservation::query()
                 ->where('terrain_id', $terrain->id)
                 ->whereIn('status', ['pending', 'confirmed'])
@@ -248,12 +254,18 @@ class TerrainController extends Controller
                 ->where('end_at', '>', $startAt)
                 ->exists();
 
+            // Also consider whether the current authenticated user has an overlapping reservation elsewhere
+            $userConflict = false;
+            if ($user) {
+                $userConflict = $this->conflicts->hasUserConflict($user->id, $startAt, $endAt);
+            }
+
             $slots[] = [
                 'time' => $time,
-                'starts_at' => $startAt->copy()->setTimezone($timezone)->toIso8601String(),
-                'ends_at' => $endAt->copy()->setTimezone($timezone)->toIso8601String(),
-                'timezone' => $timezone,
-                'available' => ! $hasConflict,
+                'starts_at' => $startAt->copy()->setTimezone($requestedTz)->toIso8601String(),
+                'ends_at' => $endAt->copy()->setTimezone($requestedTz)->toIso8601String(),
+                'timezone' => $requestedTz,
+                'available' => (! $hasConflict) && (! $userConflict),
             ];
         }
 

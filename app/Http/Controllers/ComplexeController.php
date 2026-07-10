@@ -68,11 +68,11 @@ class ComplexeController extends Controller
     {
         $user = auth('api')->user();
 
-        // GERANT and SUPER_ADMIN can create complexes
-        if (! $user || ! $user->isGerantOrAdmin()) {
+        // ONLY SUPER_ADMIN can create new complexes
+        if (! $user || ! $user->isSuperAdmin()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Forbidden. Only GERANT or SUPER_ADMIN can create complexes.',
+                'message' => 'Forbidden. Only SUPER_ADMIN can create new complexes.',
             ], 403);
         }
 
@@ -90,6 +90,7 @@ class ComplexeController extends Controller
             'address' => 'required|string|max:255',
             'city' => 'nullable|string|max:100',
             'phone' => 'nullable|string|max:20',
+            'member_discount_percentage' => 'nullable|integer|min:0|max:100',
             'is_active' => 'sometimes|boolean',
             'image_url' => 'nullable|url|max:1000',
             'facebook_url' => 'nullable|url|max:1000',
@@ -163,7 +164,7 @@ class ComplexeController extends Controller
 
         // Gerant can only see their own complexes
         if ($user && $user->isGerant()) {
-            if ($complexe->owner_id !== $user->id) {
+            if ($complexe->owner_id != $user->id) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Forbidden. You do not own this complex.',
@@ -285,6 +286,7 @@ class ComplexeController extends Controller
             'address' => 'sometimes|string|max:255',
             'city' => 'nullable|string|max:100',
             'phone' => 'nullable|string|max:20',
+            'member_discount_percentage' => 'nullable|integer|min:0|max:100',
             'is_active' => 'sometimes|boolean',
             'image_url' => 'nullable|url|max:1000',
             'facebook_url' => 'nullable|url|max:1000',

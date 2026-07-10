@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Complexe;
 use App\Models\Reservation;
 use App\Models\Terrain;
@@ -23,7 +24,6 @@ class ReservationPaymentFlowTest extends TestCase
 
         $client = User::create(['first_name' => 'Client', 'last_name' => 'One', 'email' => 'client1@t.test', 'password' => bcrypt('secret'), 'role' => 'client']);
         $token = JWTAuth::fromUser($client);
-        JWTAuth::setToken($token);
         $this->actingAs($client, 'api');
 
         $start = Carbon::tomorrow()->setTime(10, 0, 0)->format('Y-m-d H:i:s');
@@ -41,11 +41,9 @@ class ReservationPaymentFlowTest extends TestCase
         $res->assertStatus(201)->assertJson(['success' => true]);
         $id = $res->json('data.id');
 
-        // pay reservation
-        JWTAuth::setToken($token);
-        JWTAuth::shouldReceive('user')->andReturn($client);
+        // pay reservation with a card payment but no Stripe intent in test mode
         $pay = $this->withHeader('Authorization', "Bearer {$token}")
-            ->putJson("/api/reservations/{$id}/pay", ['modalite' => 'carte', 'reference' => 'test_ref']);
+            ->putJson("/api/reservations/{$id}/pay", ['modalite' => 'carte']);
 
         $pay->assertStatus(200)->assertJsonPath('data.statut_paiement', 'paye');
 
@@ -54,12 +52,39 @@ class ReservationPaymentFlowTest extends TestCase
             ->putJson("/api/reservations/{$id}/pay", ['modalite' => 'carte']);
         $double->assertStatus(422);
 
-        // cancel (client) -> should create refund reglement
+        // cancel (client) -> should mark pending refund for admin confirmation, not auto-refund
         $cancel = $this->withHeader('Authorization', "Bearer {$token}")
             ->putJson("/api/reservations/{$id}/cancel", []);
         $cancel->assertStatus(200)->assertJson(['success' => true]);
 
-        $this->assertDatabaseHas('reglement_reservations', ['reservation_id' => $id, 'type' => 'remboursement']);
+        $reservation = Reservation::find($id);
+        $this->assertSame('cancelled', $reservation->status);
+        $this->assertSame('pending', $reservation->refund_status);
+        $this->assertNull($reservation->refund_reference);
+        $this->assertDatabaseMissing('reglement_reservations', ['reservation_id' => $id, 'type' => 'remboursement']);
+
+        // admin confirms refund
+        $adminToken = JWTAuth::fromUser($admin);
+        JWTAuth::setToken($adminToken);
+        $this->actingAs($admin, 'api');
+
+        $confirmRefund = $this->withHeader('Authorization', "Bearer {$adminToken}")
+            ->putJson("/api/admin/reservations/{$id}/confirm-refund", []);
+
+        $confirmRefund->assertStatus(200)->assertJson(['success' => true]);
+
+        $reservation = $reservation->fresh();
+        $this->assertSame('succeeded', $reservation->refund_status);
+        $this->assertSame('rembourse', $reservation->statut_paiement);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $admin->id,
+            'action' => 'refund',
+            'model_type' => 'Reservation',
+            'model_id' => $id,
+        ]);
+
+        $this->assertDatabaseMissing('reglement_reservations', ['reservation_id' => $id, 'type' => 'remboursement']);
     }
 
     public function test_admin_can_confirm_cash_payment()

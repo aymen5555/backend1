@@ -14,6 +14,7 @@ class Complexe extends Model
 
     protected $fillable = [
         'owner_id',
+        'member_discount_percentage',
         'societe_id',
         'name',
         'description',
@@ -35,6 +36,7 @@ class Complexe extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'member_discount_percentage' => 'integer',
     ];
 
     protected $appends = ['image_url', 'facebook_url', 'instagram_url', 'website_url'];

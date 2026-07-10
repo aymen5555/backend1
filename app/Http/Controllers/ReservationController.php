@@ -7,6 +7,7 @@ use App\Models\ReglementReservation;
 use App\Models\Reservation;
 use App\Models\Terrain;
 use App\Models\User;
+use App\Services\AuditService;
 use App\Services\PricingService;
 use App\Services\ReservationConflictService;
 use App\Services\ReservationLockService;
@@ -15,6 +16,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Stripe\Refund;
+use Stripe\Stripe;
 use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ReservationController extends Controller
@@ -102,10 +105,28 @@ class ReservationController extends Controller
         }
 
         $reservation = $this->locks->executeWithTerrainLock($terrain->id, function () use ($terrain, $startAt, $endAt, $request) {
+            // Check per-terrain conflict
             if ($this->conflicts->hasConflict($terrain->id, $startAt, $endAt)) {
+                $conflicts = $this->conflicts->getTerrainConflicts($terrain->id, $startAt, $endAt);
                 return response()->json([
                     'success' => false,
+                    'error' => 'conflict',
+                    'type' => 'terrain_conflict',
                     'message' => 'This time slot has already been booked.',
+                    'conflicts' => $conflicts,
+                ], 409);
+            }
+
+            // Prevent the same user from booking overlapping slots (other terrains or activities)
+            $user = auth('api')->user();
+            if ($user && $this->conflicts->hasUserConflict($user->id, $startAt, $endAt)) {
+                $conflicts = $this->conflicts->getUserConflicts($user->id, $startAt, $endAt);
+                return response()->json([
+                    'success' => false,
+                    'error' => 'conflict',
+                    'type' => 'user_overlap',
+                    'message' => 'Vous avez déjà une réservation à ce créneau horaire.',
+                    'conflicts' => $conflicts,
                 ], 409);
             }
 
@@ -259,12 +280,18 @@ class ReservationController extends Controller
                 ], 409);
             }
 
-            $user = JWTAuth::user();
+            $user = auth('api')->user();
             $isPaid = $fresh->statut_paiement === 'paye' && $fresh->montant_paye > 0;
             $montant = $fresh->montant_paye ?? 0;
 
             if ($fresh->modalite_paiement === 'carte' && $fresh->statut_paiement === 'non_paye') {
-                $fresh->update(['status' => 'cancelled']);
+                $fresh->update([
+                    'status' => 'cancelled',
+                    'refund_status' => 'not_requested',
+                    'refund_reference' => null,
+                ]);
+
+                AuditService::cancel($user, 'Reservation', $fresh->id, 'Client cancelled unpaid card reservation');
 
                 return response()->json([
                     'success' => true,
@@ -292,35 +319,121 @@ class ReservationController extends Controller
                 }
             }
 
-            if ($isPaid) {
-                ReglementReservation::create([
-                    'reservation_id' => $fresh->id,
-                    'type' => 'remboursement',
-                    'montant' => $montant,
-                    'reference' => 'CANCEL-'.$fresh->id.'-'.now()->format('Ymd'),
-                ]);
+            $refundStatus = 'not_requested';
+            if ($isPaid && $fresh->modalite_paiement === 'carte') {
+                $refundStatus = 'pending';
             }
 
             $fresh->update([
                 'status' => 'cancelled',
-                'statut_paiement' => $isPaid ? 'rembourse' : $fresh->statut_paiement,
+                'refund_status' => $refundStatus,
+                'refund_reference' => null,
             ]);
+
+            if ($refundStatus === 'pending') {
+                AuditService::refund($user, 'Reservation', $fresh->id, ['montant' => $montant, 'reason' => 'Client cancelled paid reservation']);
+                $owner = $fresh->terrain?->complexe?->owner;
+                $messageDate = $fresh->start_at ? Carbon::parse($fresh->start_at)->format('d/m/Y') : ($fresh->date_seance_res ?? '');
+                $messageTime = $fresh->start_at ? Carbon::parse($fresh->start_at)->format('H:i') : '';
+                $notificationMessage = 'Demande de remboursement en attente pour la réservation du ' . $messageDate . ($messageTime ? ' à ' . $messageTime : '') . '.';
+
+                $notifiableUsers = collect();
+                if ($owner) {
+                    $notifiableUsers->push($owner);
+                }
+                $notifiableUsers = $notifiableUsers->merge(User::whereIn('role', ['super_admin', 'admin'])->get());
+                $notifiableUsers->unique('id')->each(function (User $user) use ($fresh, $notificationMessage) {
+                    $user->notify(new \App\Notifications\ReservationStatusChanged($fresh, $notificationMessage));
+                });
+            }
 
             return response()->json([
                 'success' => true,
-                'message' => $isPaid
-                    ? "Réservation annulée. Remboursement de {$montant} DT initié."
+                'message' => $refundStatus === 'pending'
+                    ? "Réservation annulée. Un remboursement sera traité par le gérant."
                     : 'Reservation cancelled successfully.',
                 'data' => $fresh->fresh()->load(['terrain.complexe', 'user:id,first_name,last_name,email', 'reglements']),
             ]);
         });
     }
 
+    public function confirmerRemboursement(Reservation $reservation): JsonResponse
+    {
+        $user = auth('api')->user();
+
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Accès interdit.'], 403);
+        }
+
+        if (! $user->isAdmin() && ! ($user->isGerant() && $reservation->terrain?->complexe && $reservation->terrain->complexe->owner_id === $user->id)) {
+            return response()->json(['success' => false, 'message' => 'Accès interdit.'], 403);
+        }
+
+        if ($reservation->refund_status !== 'pending') {
+            return response()->json(['success' => false, 'message' => 'Aucun remboursement en attente.'], 422);
+        }
+
+        return DB::transaction(function () use ($reservation, $user): JsonResponse {
+            if (! $reservation->stripe_payment_intent_id) {
+                $reservation->update([
+                    'refund_status' => 'succeeded',
+                    'refund_reference' => 'manual',
+                    'statut_paiement' => 'rembourse',
+                ]);
+
+                AuditService::refund($user, 'Reservation', $reservation->id, ['status' => 'succeeded', 'method' => 'manual']);
+
+                return response()->json(['success' => true, 'message' => 'Remboursement validé.']);
+            }
+
+            try {
+                $refundResult = $this->createStripeRefund($reservation->stripe_payment_intent_id, $reservation);
+                $refundStatus = $refundResult['status'] === 'succeeded' ? 'succeeded' : 'failed';
+                $reservation->update([
+                    'refund_status' => $refundStatus,
+                    'refund_reference' => $refundResult['id'] ?? null,
+                    'statut_paiement' => $refundStatus === 'succeeded' ? 'rembourse' : $reservation->statut_paiement,
+                ]);
+
+                AuditService::refund($user, 'Reservation', $reservation->id, ['status' => $refundStatus, 'reference' => $refundResult['id'] ?? null, 'method' => 'stripe']);
+            } catch (\Throwable $e) {
+                $reservation->update([
+                    'refund_status' => 'failed',
+                    'refund_reference' => null,
+                ]);
+
+                AuditService::refund($user, 'Reservation', $reservation->id, ['status' => 'failed', 'error' => $e->getMessage()]);
+            }
+
+            return response()->json(['success' => true, 'message' => 'Remboursement validé.']);
+        });
+    }
+
+    protected function createStripeRefund(string $paymentIntentId, Reservation $reservation): array
+    {
+        Stripe::setApiKey(config('services.stripe.secret'));
+
+        $refund = Refund::create([
+            'payment_intent' => $paymentIntentId,
+            'metadata' => [
+                'reservation_id' => $reservation->id,
+                'type' => 'reservation',
+            ],
+        ]);
+
+        return [
+            'id' => $refund->id,
+            'status' => $refund->status,
+        ];
+    }
+
     public function pay(Request $request, Reservation $reservation): JsonResponse
     {
         $this->authorizeAccess($reservation);
 
-        return DB::transaction(function () use ($reservation, $request): JsonResponse {
+        $user = auth('api')->user();
+
+        return DB::transaction(function () use ($reservation, $request, $user): JsonResponse {
             $fresh = Reservation::lockForUpdate()->find($reservation->id);
 
             if ($fresh->statut_paiement === 'paye') {
@@ -351,11 +464,17 @@ class ReservationController extends Controller
                 $complexeId
             );
 
+            $paymentIntentId = $request->input('payment_intent_id')
+                ?? $request->input('stripe_payment_intent_id')
+                ?? $request->input('reference_paiement')
+                ?? $request->input('reference');
+
             $fresh->update([
                 'status' => 'confirmed',
                 'statut_paiement' => 'paye',
                 'montant_paye' => $montant,
-                'reference_paiement' => $request->reference_paiement ?? null,
+                'reference_paiement' => $paymentIntentId ?? null,
+                'stripe_payment_intent_id' => $paymentIntentId,
             ]);
 
             ReglementReservation::create([
@@ -364,6 +483,16 @@ class ReservationController extends Controller
                 'montant' => $montant,
                 'reference' => $request->reference_paiement ?? null,
             ]);
+
+            AuditService::payment($user, 'Reservation', $fresh->id, $montant, 'carte');
+
+            $paymentMessage = 'Votre paiement de la réservation du ' . Carbon::parse($fresh->start_at)->format('d/m/Y') . ' a été confirmé.';
+            $fresh->user?->notify(new \App\Notifications\ReservationStatusChanged($fresh, $paymentMessage));
+
+            $owner = $fresh->terrain?->complexe?->owner;
+            if ($owner) {
+                $owner->notify(new \App\Notifications\ReservationStatusChanged($fresh, 'Une réservation a été payée pour votre complexe.'));
+            }
 
             return response()->json([
                 'success' => true,
@@ -385,6 +514,11 @@ class ReservationController extends Controller
         }
 
         // Always soft-delete for audit trail — archives show ALL deleted records
+        AuditService::delete(auth('api')->user(), 'Reservation', $reservation->id, [
+            'status' => $reservation->status,
+            'statut_paiement' => $reservation->statut_paiement,
+            'montant_paye' => $reservation->montant_paye,
+        ]);
         $reservation->delete();
 
         return response()->json([

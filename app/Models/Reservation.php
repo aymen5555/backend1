@@ -24,6 +24,10 @@ class Reservation extends Model
         'modalite_paiement',
         'statut_paiement',
         'montant_paye',
+        'reference_paiement',
+        'stripe_payment_intent_id',
+        'refund_status',
+        'refund_reference',
     ];
 
     protected $casts = [
@@ -50,7 +54,9 @@ class Reservation extends Model
 
     public function getTarifCalculeAttribute(): float
     {
-        if ($this->montant_paye > 0) {
+        // If the reservation is fully paid, return the paid amount as the calculated tariff.
+        // For partial payments we must still compute the authoritative tariff from PricingService.
+        if ($this->montant_paye > 0 && $this->statut_paiement === 'paye') {
             return (float) $this->montant_paye;
         }
 

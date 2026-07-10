@@ -25,6 +25,7 @@ class TypeAbonnementAdherent extends Model
         'avantages',
         'active',
         'categorie_abonnement_adherent_id',
+        'discount_percentage',
     ];
 
     protected $casts = [
@@ -33,6 +34,7 @@ class TypeAbonnementAdherent extends Model
         'tarif' => 'float',
         'prix_unitaire' => 'float',
         'nb_mois' => 'integer',
+        'discount_percentage' => 'integer',
     ];
 
     public function complexe(): BelongsTo

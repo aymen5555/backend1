@@ -21,6 +21,9 @@ class ReservationActivite extends Model
         'notes',
         'montant_paye',
         'reference_paiement',
+        'stripe_payment_intent_id',
+        'refund_status',
+        'refund_reference',
     ];
 
     protected $casts = [

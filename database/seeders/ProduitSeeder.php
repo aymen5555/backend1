@@ -113,7 +113,7 @@ class ProduitSeeder extends Seeder
                         'sport_cible' => $p['sport_cible'],
                         'niveau_cible' => $p['niveau_cible'],
                         'image' => $this->imagePool[$imgIndex],
-                        'reference' => 'REF-'.strtoupper(substr($p['sport_cible'], 0, 3)).'-'.str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
+                        'reference' => 'PRD-'.strtoupper(substr($p['sport_cible'], 0, 3)).'-'.str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT),
                         'actif' => true,
                     ]
                 );

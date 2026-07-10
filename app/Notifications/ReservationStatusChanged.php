@@ -28,6 +28,10 @@ class ReservationStatusChanged extends Notification
     {
         if ($this->customMessage) {
             $message = $this->customMessage;
+        } elseif ($this->reservation->status === 'cancelled' && $this->reservation->refund_status === 'pending') {
+            $dateStr = $this->reservation->start_at ? $this->reservation->start_at->format('Y-m-d') : ($this->reservation->date_seance_res ?? '');
+            $timeStr = $this->reservation->start_at ? $this->reservation->start_at->format('H:i') : ($this->reservation->heure_debut_res ?? '');
+            $message = "Votre réservation du " . $dateStr . ($timeStr ? " à " . $timeStr : "") . " est annulée. Une demande de remboursement est en attente de validation.";
         } else {
             $status = $this->reservation->status;
             $labels = [

@@ -18,6 +18,10 @@ class CategorieFournisseurController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (auth()->user()->role !== 'super_admin') {
+            abort(403, 'Only super administrators can create supplier categories.');
+        }
+
         $validator = Validator::make($request->all(), [
             'nom_cat_four' => 'required|string|max:255',
             'active' => 'sometimes|boolean',
@@ -34,6 +38,10 @@ class CategorieFournisseurController extends Controller
 
     public function update(Request $request, CategorieFournisseur $categorieFournisseur): JsonResponse
     {
+        if (auth()->user()->role !== 'super_admin') {
+            abort(403, 'Only super administrators can update supplier categories.');
+        }
+
         $validator = Validator::make($request->all(), [
             'nom_cat_four' => 'required|string|max:255',
             'active' => 'sometimes|boolean',
@@ -50,6 +58,10 @@ class CategorieFournisseurController extends Controller
 
     public function destroy(CategorieFournisseur $categorieFournisseur): JsonResponse
     {
+        if (auth()->user()->role !== 'super_admin') {
+            abort(403, 'Only super administrators can delete supplier categories.');
+        }
+
         $categorieFournisseur->delete();
 
         return response()->json(['success' => true, 'message' => 'Catégorie fournisseur supprimée.']);

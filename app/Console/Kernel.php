@@ -2,6 +2,7 @@
 
 namespace App\Console;
 
+use App\Console\Commands\CleanupInvalidAbonnementsCommand;
 use App\Console\Commands\SafeMigrateFreshCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
@@ -28,6 +29,7 @@ class Kernel extends ConsoleKernel
         Artisan::starting(function ($artisan) {
             $migrator = $artisan->getLaravel()->make('migrator');
             $artisan->add(new SafeMigrateFreshCommand($migrator));
+            $artisan->add(new CleanupInvalidAbonnementsCommand());
         });
     }
 }

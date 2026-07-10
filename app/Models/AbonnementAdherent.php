@@ -27,6 +27,9 @@ class AbonnementAdherent extends Model
         'statut',
         'paye',
         'reste_a_payer',
+        'refund_status',
+        'refund_reference',
+        'stripe_payment_intent_id',
     ];
 
     protected $casts = [

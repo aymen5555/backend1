@@ -44,6 +44,7 @@ class FournisseurController extends Controller
             'telephone' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'adresse' => 'nullable|string',
+            'categorie_fournisseur_id' => 'nullable|exists:categorie_fournisseurs,id',
         ]);
 
         if ($validator->fails()) {
@@ -71,6 +72,7 @@ class FournisseurController extends Controller
             'telephone' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
             'adresse' => 'nullable|string',
+            'categorie_fournisseur_id' => 'nullable|exists:categorie_fournisseurs,id',
             'actif' => 'sometimes|boolean',
         ]);
 

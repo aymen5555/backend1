@@ -12,13 +12,18 @@ class RoleMiddleware
 {
     public function handle(Request $request, Closure $next, string ...$roles)
     {
-        try {
-            $user = JWTAuth::parseToken()->authenticate();
-        } catch (JWTException) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthorized. Token missing or invalid.',
-            ], 401);
+        // Prefer the auth guard user (set by tests using actingAs or other guards)
+        $user = auth('api')->user();
+
+        if (! $user) {
+            try {
+                $user = JWTAuth::parseToken()->authenticate();
+            } catch (JWTException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized. Token missing or invalid.',
+                ], 401);
+            }
         }
 
         if (! $user || ! $this->roleMatches($user->role, $roles)) {

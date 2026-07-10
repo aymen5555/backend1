@@ -8,6 +8,7 @@ use App\Models\LigneBonSortie;
 use App\Models\Produit;
 use App\Models\Stock;
 use App\Models\VenteDirecte;
+use App\Services\AuditService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -70,10 +71,11 @@ class VenteDirecteController extends Controller
             // Array format: { complexe_id, client_nom, modalite_paiement, lignes: [{ produit_id, quantite }, ...] }
             $validator = Validator::make($request->all(), [
                 'complexe_id' => 'required|exists:complexes,id',
-                'modalite_paiement' => 'required|in:especes,carte',
+                'modalite_paiement' => 'required|in:especes',
                 'client_nom' => 'nullable|string|max:255',
                 'user_id' => 'nullable|exists:users,id',
                 'notes' => 'nullable|string',
+                'stripe_payment_intent_id' => 'nullable|string|max:255',
                 'lignes' => 'required|array|min:1',
                 'lignes.*.produit_id' => 'required|exists:produits,id',
                 'lignes.*.quantite' => 'required|integer|min:1',
@@ -128,6 +130,7 @@ class VenteDirecteController extends Controller
                             'prix_unitaire' => $prixUnitaire,
                             'montant_total' => $montantTotal,
                             'modalite_paiement' => $request->modalite_paiement,
+                            'stripe_payment_intent_id' => $request->stripe_payment_intent_id,
                             'client_nom' => $request->client_nom,
                             'user_id' => $request->user_id,
                             'notes' => $request->notes,
@@ -135,6 +138,16 @@ class VenteDirecteController extends Controller
 
                         $stock->decrement('quantite_disponible', $ligne['quantite']);
                         $ventes[] = $vente;
+                    }
+
+                    if (! empty($ventes)) {
+                        AuditService::payment(
+                            auth('api')->user(),
+                            'VenteDirecte',
+                            $ventes[0]->id,
+                            collect($ventes)->sum('montant_total'),
+                            $request->modalite_paiement
+                        );
                     }
 
                     // Auto-create a BonSortie for the stock audit trail
@@ -175,7 +188,8 @@ class VenteDirecteController extends Controller
             'produit_id' => 'required|exists:produits,id',
             'complexe_id' => 'required|exists:complexes,id',
             'quantite' => 'required|integer|min:1',
-            'modalite_paiement' => 'required|in:especes,carte',
+            'modalite_paiement' => 'required|in:especes',
+            'stripe_payment_intent_id' => 'nullable|string|max:255',
             'client_nom' => 'nullable|string|max:255',
             'user_id' => 'nullable|exists:users,id',
             'notes' => 'nullable|string',
@@ -229,6 +243,7 @@ class VenteDirecteController extends Controller
                 'prix_unitaire'      => $prixUnitaire,
                 'montant_total'      => $montantTotal,
                 'modalite_paiement'  => $request->modalite_paiement,
+                'stripe_payment_intent_id' => $request->stripe_payment_intent_id,
                 'client_nom'         => $request->client_nom,
                 'user_id'            => $request->user_id,
                 'notes'              => $request->notes,
@@ -252,6 +267,14 @@ class VenteDirecteController extends Controller
                 'quantite_entree_lig_bon_sor' => $request->quantite,
                 'prix_unitaire_constate'      => $prixUnitaire,
             ]);
+
+            AuditService::payment(
+                auth('api')->user(),
+                'VenteDirecte',
+                $vente->id,
+                $montantTotal,
+                $request->modalite_paiement
+            );
 
             return response()->json([
                 'success'    => true,

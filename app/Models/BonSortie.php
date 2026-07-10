@@ -15,11 +15,15 @@ class BonSortie extends Model
         'complexe_id',
         'motif',
         'created_by',
+        'montant_paye',
+        'reference_paiement',
+        'statut_paiement',
     ];
 
     protected $casts = [
         'date_bon_sor' => 'date',
         'total_ttc_bon_sor' => 'decimal:2',
+        'montant_paye' => 'decimal:2',
     ];
 
     public function complexe(): BelongsTo
@@ -35,5 +39,10 @@ class BonSortie extends Model
     public function lignes(): HasMany
     {
         return $this->hasMany(LigneBonSortie::class, 'bon_sortie_id');
+    }
+
+    public function reglements(): HasMany
+    {
+        return $this->hasMany(ReglementBonSortie::class, 'bon_sortie_id');
     }
 }
