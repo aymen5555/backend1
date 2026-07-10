@@ -25,7 +25,9 @@ jobs:
         run: composer install --no-progress --no-interaction --prefer-dist
 
       - name: Run PHPStan
-        run: vendor/bin/phpstan analyse -c phpstan.neon app tests --level=7 --memory-limit=1G || true
+        run: |
+          # Produce JSON report so it can be uploaded as an artifact for triage
+          vendor/bin/phpstan analyse -c phpstan.neon app tests --level=7 --memory-limit=1G --error-format=json > phpstan_report.json || true
 
       - name: Run PHPCS
         run: vendor/bin/phpcs --standard=phpcs.xml app tests || true
