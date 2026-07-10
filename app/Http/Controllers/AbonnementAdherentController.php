@@ -61,7 +61,7 @@ class AbonnementAdherentController extends Controller
 
                     // Check existing refunds for this payment_intent to avoid duplicate attempts
                     $existing = Refund::all(['payment_intent' => $request->reference]);
-                    if (! empty($existing->data) && count($existing->data) > 0) {
+                    if (! empty($existing->data)) {
                         $first = $existing->data[0];
                         $refundInfo = [
                             'already_refunded' => true,
@@ -94,6 +94,7 @@ class AbonnementAdherentController extends Controller
 
         $user = auth('api')->user();
         $type = TypeAbonnementAdherent::findOrFail($request->type_abonnement_id);
+        /** @var TypeAbonnementAdherent $type */
 
         // Normalize incoming date to the application timezone and compare calendar date
         $dateDebut = Carbon::parse($request->date_debut)->setTimezone(config('app.timezone'))->toDateString();
@@ -106,7 +107,7 @@ class AbonnementAdherentController extends Controller
                 try {
                     Stripe::setApiKey(config('services.stripe.secret'));
                     $existing = Refund::all(['payment_intent' => $request->reference]);
-                    if (! empty($existing->data) && count($existing->data) > 0) {
+                    if (! empty($existing->data)) {
                         $first = $existing->data[0];
                         $refundInfo = [
                             'already_refunded' => true,
@@ -214,10 +215,11 @@ class AbonnementAdherentController extends Controller
         return response()->json(['success' => true, 'data' => $filtered]);
     }
 
-    public function show($id): JsonResponse
+    public function show(int $id): JsonResponse
     {
         $user = auth('api')->user();
         $sub = AbonnementAdherent::with(['typeAbonnement', 'complexe', 'reglements', 'user'])->findOrFail($id);
+        /** @var AbonnementAdherent $sub */
 
         if ($sub->user_id !== $user->id && ! $user->isGerant() && ! $user->isAdmin()) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
@@ -233,10 +235,11 @@ class AbonnementAdherentController extends Controller
     /**
      * Client-side cancel subscription
      */
-    public function cancel($id): JsonResponse
+    public function cancel(int $id): JsonResponse
     {
         $user = auth('api')->user();
         $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
+        /** @var AbonnementAdherent $sub */
 
         // Verify ownership
         if ($sub->user_id !== $user->id) {
@@ -264,8 +267,10 @@ class AbonnementAdherentController extends Controller
 
         // If this cancellation requires a refund (paid by card), notify complex owner and admins
         if (($sub->paye ?? false) && ($sub->refund_status === 'pending')) {
-            $owner = $sub->complexe?->owner ?? null;
-            $notificationMessage = 'Demande de remboursement en attente pour l\'abonnement ' . ($sub->typeAbonnement?->nom ?? '') . ' (' . ($sub->complexe?->name ?? '') . ').';
+            /** @var User|null $owner */
+            /** @var User|null $owner */
+            $owner = $sub->complexe?->owner;
+            $notificationMessage = 'Demande de remboursement en attente pour l\'abonnement ' . (optional($sub->typeAbonnement)->nom ?? '') . ' (' . (optional($sub->complexe)->name ?? '') . ').';
 
             $notifiableUsers = collect();
             if ($owner) {
@@ -285,10 +290,11 @@ class AbonnementAdherentController extends Controller
     /**
      * Client-side pay subscription
      */
-    public function pay(Request $request, $id): JsonResponse
+    public function pay(Request $request, int $id): JsonResponse
     {
         $user = auth('api')->user();
         $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
+        /** @var AbonnementAdherent $sub */
 
         // Verify ownership
         if ($sub->user_id !== $user->id) {
@@ -328,16 +334,17 @@ class AbonnementAdherentController extends Controller
         AuditService::payment($user, 'AbonnementAdherent', $sub->id, $sub->montant_apres_remise, $request->modalite_paiement);
 
         if ($sub->user) {
-            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub, "Le paiement de votre abonnement " . ($sub->typeAbonnement?->nom ?? 'Adhérent') . " a été enregistré avec succès."));
+            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub, "Le paiement de votre abonnement " . (optional($sub->typeAbonnement)->nom ?? 'Adhérent') . " a été enregistré avec succès."));
         }
 
         return response()->json(['success' => true, 'message' => 'Paiement effectué.', 'data' => $sub->fresh()]);
     }
 
-    public function destroy($id): JsonResponse
+    public function destroy(int $id): JsonResponse
     {
         $user = auth('api')->user();
         $sub = AbonnementAdherent::with('complexe')->findOrFail($id);
+        /** @var AbonnementAdherent $sub */
 
         if ($sub->user_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
@@ -423,7 +430,9 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
         }
 
-        $complexe = Complexe::findOrFail($request->complexe_id);
+        $complexeId = (int) $request->complexe_id;
+        $complexe = Complexe::findOrFail($complexeId);
+        /** @var Complexe $complexe */
         if ($user->isGerant() && $complexe->owner_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden. Complexe not found.'], 403);
         }
@@ -446,7 +455,7 @@ class AbonnementAdherentController extends Controller
         return response()->json(['success' => true, 'data' => $type], 201);
     }
 
-    public function adminUpdateType(Request $request, $id): JsonResponse
+    public function adminUpdateType(Request $request, int $id): JsonResponse
     {
         $user = auth('api')->user();
         if (! $user->isGerant() && ! $user->isAdmin()) {
@@ -483,7 +492,8 @@ class AbonnementAdherentController extends Controller
         $data = $request->only(['nom', 'description', 'nb_mois', 'tarif', 'prix_unitaire', 'niveau_sportif_cible', 'sport_cible', 'avantages', 'active', 'discount_percentage']);
 
         if ($request->has('complexe_id')) {
-            $complexe = Complexe::findOrFail($request->complexe_id);
+            $complexeId = (int) $request->complexe_id;
+            $complexe = Complexe::findOrFail($complexeId);
             if ($user->isGerant() && $complexe->owner_id !== $user->id) {
                 return response()->json(['success' => false, 'message' => 'Forbidden. Complexe not found.'], 403);
             }
@@ -495,7 +505,7 @@ class AbonnementAdherentController extends Controller
         return response()->json(['success' => true, 'data' => $type->fresh(['complexe'])]);
     }
 
-    public function adminDeleteType($id): JsonResponse
+    public function adminDeleteType(int $id): JsonResponse
     {
         $user = auth('api')->user();
         if (! $user->isGerant() && ! $user->isAdmin()) {
@@ -507,7 +517,7 @@ class AbonnementAdherentController extends Controller
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
-        if ($type->abonnements()->withTrashed()->exists() || $type->detailsAbonnements()->exists()) {
+        if (AbonnementAdherent::withTrashed()->where('type_abonnement_id', $type->id)->exists() || $type->detailsAbonnements()->exists()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Impossible de supprimer cette formule car des adhérents y sont abonnés ou elle possède des détails d\'abonnement liés. Désactivez-la à la place.',
@@ -640,7 +650,7 @@ class AbonnementAdherentController extends Controller
         }
     }
 
-    public function adminConfirmPayment(Request $request, $id): JsonResponse
+    public function adminConfirmPayment(Request $request, int $id): JsonResponse
     {
         $user = auth('api')->user();
         if (! $user->isGerant() && ! $user->isAdmin()) {
@@ -682,13 +692,13 @@ class AbonnementAdherentController extends Controller
         ]);
 
         if ($sub->user) {
-            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub, "Le paiement de votre abonnement " . ($sub->typeAbonnement?->nom ?? 'Adhérent') . " a été enregistré avec succès."));
+            $sub->user->notify(new \App\Notifications\AbonnementStatusChanged($sub, "Le paiement de votre abonnement " . (optional($sub->typeAbonnement)->nom ?? 'Adhérent') . " a été enregistré avec succès."));
         }
 
         return response()->json(['success' => true, 'message' => 'Paiement confirmé.', 'data' => $sub->fresh()]);
     }
 
-    public function adminCancel($id): JsonResponse
+    public function adminCancel(int $id): JsonResponse
     {
         $user = auth('api')->user();
         if (! $user->isGerant() && ! $user->isAdmin()) {
@@ -712,16 +722,17 @@ class AbonnementAdherentController extends Controller
     /**
      * Admin-side refund approval for cancelled subscriptions
      */
-    public function confirmerRemboursement($id): JsonResponse
+    public function confirmerRemboursement(int $id): JsonResponse
     {
         $user = auth('api')->user();
 
         // Intentionally avoid logging sensitive authorization headers or bearer tokens here.
 
         $sub = AbonnementAdherent::with(['complexe', 'typeAbonnement', 'user'])->findOrFail($id);
+        /** @var AbonnementAdherent $sub */
 
         // Admins can always review refunds. Gerants can only process refunds for their own complexe.
-        if (! $user->isAdmin() && ! ($user->isGerant() && $sub->complexe && $sub->complexe->owner_id === $user->id)) {
+        if (! $user->isAdmin() && ! ($user->isGerant() && optional($sub->complexe)->owner_id === $user->id)) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 
@@ -796,7 +807,7 @@ class AbonnementAdherentController extends Controller
         ]);
     }
 
-    public function adminDestroy($id): JsonResponse
+    public function adminDestroy(int $id): JsonResponse
     {
         $user = auth('api')->user();
         if (! $user->isGerant() && ! $user->isAdmin()) {
@@ -804,7 +815,8 @@ class AbonnementAdherentController extends Controller
         }
 
         $sub = AbonnementAdherent::with(['complexe', 'reglements'])->findOrFail($id);
-        if ($user->isGerant() && $sub->complexe?->owner_id !== $user->id) {
+        /** @var AbonnementAdherent $sub */
+        if ($user->isGerant() && optional($sub->complexe)->owner_id !== $user->id) {
             return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
         }
 

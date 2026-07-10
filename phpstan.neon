@@ -6,7 +6,4 @@ parameters:
     paths:
         - app
         - tests
-    autoload_files:
-        - %rootDir%/../vendor/autoload.php
-    checkMissingIterableValueType: false
     inferPrivatePropertyTypeFromConstructor: true

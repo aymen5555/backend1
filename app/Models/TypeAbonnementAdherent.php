@@ -7,6 +7,15 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int $id
+ * @property int $complexe_id
+ * @property int $nb_mois
+ * @property float $tarif
+ * @property float $prix_unitaire
+ * @property int|null $discount_percentage
+ * @property Complexe|null $complexe
+ */
 class TypeAbonnementAdherent extends Model
 {
     use HasFactory;

@@ -173,8 +173,8 @@ class CommandeController extends Controller
         $hasSubscription = $request->filled('type_abonnement_id');
         $hasAbonnement = $request->filled('abonnement_id');
 
-        if (! $hasReservation && ! $hasItems && ! $hasSubscription) {
-            return response()->json(['success' => false, 'message' => 'reservation_id, items ou type_abonnement_id requis.'], 422);
+        if (! $hasReservation && ! $hasItems && ! $hasSubscription && ! $hasAbonnement) {
+            return response()->json(['success' => false, 'message' => 'reservation_id, items, type_abonnement_id ou abonnement_id requis.'], 422);
         }
 
         $tndAmount = 0;
@@ -203,13 +203,16 @@ class CommandeController extends Controller
             }
         } elseif ($hasSubscription) {
             $typeId = $request->input('type_abonnement_id');
-            $dateDebut = $request->input('date_debut');
             $type = \App\Models\TypeAbonnementAdherent::findOrFail($typeId);
             // Reuse PricingService logic from subscription controller
             $pricingService = new \App\Services\PricingService();
             $pricing = $pricingService->calculateAbonnementPricing($type, $type->tarif);
             $tndAmount = $pricing['montant_apres_remise'] ?? $type->tarif;
             $contextComplexeId = $type->complexe_id;
+        } elseif ($hasAbonnement) {
+            $ab = \App\Models\AbonnementAdherent::with('typeAbonnement', 'complexe')->findOrFail($request->abonnement_id);
+            $tndAmount = $ab->reste_a_payer ?? $ab->montant_apres_remise ?? $ab->montant_vente ?? 0;
+            $contextComplexeId = $ab->complexe_id ?? $ab->typeAbonnement?->complexe_id ?? null;
         }
 
         try {
@@ -283,9 +286,10 @@ class CommandeController extends Controller
         $hasReservation = $request->filled('reservation_id');
         $hasItems = is_array($request->input('items')) && count($request->input('items')) > 0;
         $hasSubscription = $request->filled('type_abonnement_id');
+        $hasAbonnement = $request->filled('abonnement_id');
 
-        if (! $hasReservation && ! $hasItems && ! $hasSubscription) {
-            return response()->json(['success' => false, 'message' => 'reservation_id, items ou type_abonnement_id requis.'], 422);
+        if (! $hasReservation && ! $hasItems && ! $hasSubscription && ! $hasAbonnement) {
+            return response()->json(['success' => false, 'message' => 'reservation_id, items, type_abonnement_id ou abonnement_id requis.'], 422);
         }
 
         $tndAmount = 0;
@@ -296,6 +300,7 @@ class CommandeController extends Controller
                 return response()->json(['success' => false, 'message' => self::ACCESS_DENIED_MESSAGE], 403);
             }
             $tndAmount = ($reservation->statut_paiement === 'paye' ? $reservation->montant_paye : $reservation->tarif_calcule) ?? 0;
+            $contextComplexeId = $reservation->terrain?->complexe_id ?? null;
         } elseif ($hasItems) {
             $items = $request->input('items');
             $produitIds = collect($items)->pluck('produit_id')->unique()->toArray();

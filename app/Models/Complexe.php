@@ -8,6 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property int $owner_id
+ * @property int|null $member_discount_percentage
+ * @property string $name
+ * @property string|null $description
+ * @property User|null $owner
+ */
 class Complexe extends Model
 {
     use SoftDeletes;

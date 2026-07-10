@@ -175,6 +175,7 @@ class ActiviteController extends Controller
         ]);
 
         // We don't have ReglementReservation for activites, so just update status
+        AuditService::payment(auth('api')->user(), 'ReservationActivite', $reservation->id, $montant, $request->modalite_paiement ?? 'carte');
 
         return response()->json([
             'success' => true,

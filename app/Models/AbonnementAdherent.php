@@ -9,6 +9,27 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property int $complexe_id
+ * @property int $type_abonnement_id
+ * @property string $date_debut
+ * @property string $date_fin
+ * @property float $montant_vente
+ * @property int $remise
+ * @property float $montant_apres_remise
+ * @property string $statut
+ * @property bool $paye
+ * @property float $reste_a_payer
+ * @property string $refund_status
+ * @property string|null $refund_reference
+ * @property string|null $stripe_payment_intent_id
+ * @property Complexe|null $complexe
+ * @property User|null $user
+ * @property TypeAbonnementAdherent|null $typeAbonnement
+ * @property \Illuminate\Database\Eloquent\Collection<int, ReglementAbonnement> $reglements
+ */
 class AbonnementAdherent extends Model
 {
     use HasFactory;

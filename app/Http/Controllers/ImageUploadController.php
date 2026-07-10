@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 
 class ImageUploadController extends Controller
@@ -43,7 +44,7 @@ class ImageUploadController extends Controller
                 ],
             ]);
         } catch (\Exception $e) {
-            \Log::error('ImageUploadController error: ' . $e->getMessage());
+            Log::error('ImageUploadController error: ' . $e->getMessage());
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
     }
